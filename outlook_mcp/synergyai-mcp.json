@@ -1,0 +1,11 @@
+{
+  "name": "outlook_mcp",
+  "runtime": "python",
+  "description": "Outlook mail through Microsoft Graph",
+  "exclude": [
+    "smoke.sh",
+    "pytest.ini"
+  ],
+  "install": "python3 -m venv .venv && .venv/bin/pip install -r requirements.txt",
+  "start": "./run.sh"
+}

@@ -1,0 +1,14 @@
+{
+  "name": "image-server",
+  "runtime": "php",
+  "entry": "mcp.php",
+  "description": "Image generation with Gemini",
+  "env": [
+    {
+      "name": "GEMINI_API_KEY",
+      "label": "Google Gemini API key",
+      "required": true,
+      "secret": true
+    }
+  ]
+}

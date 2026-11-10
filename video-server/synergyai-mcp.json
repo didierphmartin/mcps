@@ -1,0 +1,18 @@
+{
+  "name": "video-server",
+  "runtime": "php",
+  "entry": "mcp.php",
+  "description": "Video generation with Veo or Grok",
+  "env": [
+    {
+      "name": "GEMINI_API_KEY",
+      "label": "Google Gemini API key (Veo videos)",
+      "secret": true
+    },
+    {
+      "name": "GROK_API_KEY",
+      "label": "xAI API key (Grok videos)",
+      "secret": true
+    }
+  ]
+}

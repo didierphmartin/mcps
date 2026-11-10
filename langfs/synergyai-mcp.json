@@ -1,0 +1,33 @@
+{
+  "name": "langfs",
+  "runtime": "python",
+  "description": "Read files and documents through LangChain loaders",
+  "install": "python3 -m venv .venv && .venv/bin/pip install -r requirements.txt",
+  "start": "exec .venv/bin/python server.py",
+  "env": [
+    {
+      "name": "LANGFS_ROOTS",
+      "label": "Folders the server may read, separated by :",
+      "required": true
+    },
+    {
+      "name": "LANGFS_PROVIDERS_DIR",
+      "label": "Provider descriptors folder (optional)"
+    },
+    {
+      "name": "LANGFS_CURSOR_TTL",
+      "label": "Seconds a read cursor stays open",
+      "default": "3600"
+    },
+    {
+      "name": "LANGFS_HOST",
+      "label": "Host to listen on",
+      "default": "127.0.0.1"
+    },
+    {
+      "name": "LANGFS_PORT",
+      "label": "Port",
+      "default": "8077"
+    }
+  ]
+}

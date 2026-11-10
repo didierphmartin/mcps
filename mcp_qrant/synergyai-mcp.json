@@ -1,0 +1,61 @@
+{
+  "name": "mcp_qrant",
+  "runtime": "python",
+  "description": "Vector store: store and find documents (Qdrant, pgvector)",
+  "install": "python3 -m venv .venv && .venv/bin/pip install -r requirements.txt",
+  "start": "MCPQ_QDRANT_MODE=\"${MCPQ_QDRANT_MODE:-local}\" MCPQ_QDRANT_PATH=\"${MCPQ_QDRANT_PATH:-data/qdrant}\" exec .venv/bin/python server.py",
+  "env": [
+    {
+      "name": "MCPQ_QDRANT_MODE",
+      "label": "Qdrant mode: local or remote",
+      "default": "local"
+    },
+    {
+      "name": "MCPQ_QDRANT_PATH",
+      "label": "Local Qdrant storage folder (optional)"
+    },
+    {
+      "name": "MCPQ_QDRANT_URL",
+      "label": "Remote Qdrant URL (remote mode)"
+    },
+    {
+      "name": "MCPQ_QDRANT_API_KEY",
+      "label": "Remote Qdrant API key",
+      "secret": true
+    },
+    {
+      "name": "MCPQ_PGVECTOR_DSN",
+      "label": "Postgres connection for pgvector (optional)",
+      "secret": true
+    },
+    {
+      "name": "MCPQ_OPENAI_API_KEY",
+      "label": "OpenAI API key for embeddings (optional)",
+      "secret": true
+    },
+    {
+      "name": "MCPQ_EMBEDDING",
+      "label": "Embedding model",
+      "default": "openai:text-embedding-3-small"
+    },
+    {
+      "name": "MCPQ_COLLECTION",
+      "label": "Default collection",
+      "default": "documents"
+    },
+    {
+      "name": "MCPQ_PROVIDERS_DIR",
+      "label": "Provider descriptors folder (optional)"
+    },
+    {
+      "name": "MCPQ_HOST",
+      "label": "Host to listen on",
+      "default": "127.0.0.1"
+    },
+    {
+      "name": "MCPQ_PORT",
+      "label": "Port",
+      "default": "8008"
+    }
+  ]
+}

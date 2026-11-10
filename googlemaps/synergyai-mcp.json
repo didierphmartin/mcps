@@ -1,0 +1,19 @@
+{
+  "name": "googlemaps",
+  "runtime": "php",
+  "entry": "mcp.php",
+  "description": "Interactive Google Maps",
+  "env": [
+    {
+      "name": "GOOGLE_MAPS_API_KEY",
+      "label": "Google Maps JavaScript API key",
+      "required": true,
+      "secret": true
+    },
+    {
+      "name": "MCP_DEBUG",
+      "label": "Write mcp.log (0 = off)",
+      "default": "1"
+    }
+  ]
+}

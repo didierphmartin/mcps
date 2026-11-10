@@ -1,0 +1,67 @@
+{
+  "name": "sharepoint_mcp",
+  "runtime": "python",
+  "description": "SharePoint documents through Microsoft Graph",
+  "include": [
+    "*.py",
+    "requirements.txt",
+    "run.sh",
+    ".env.example",
+    "README.md",
+    "synergyai-mcp.json"
+  ],
+  "exclude": [
+    "tests/",
+    "pytest.ini"
+  ],
+  "install": "python3 -m venv .venv && .venv/bin/pip install -r requirements.txt",
+  "start": "./run.sh",
+  "env": [
+    {
+      "name": "SHAREPOINT_CLIENT_ID",
+      "label": "Entra ID app (client) ID",
+      "required": true
+    },
+    {
+      "name": "SHAREPOINT_SECRET_KEY",
+      "label": "Encryption key for stored sign-in tokens (Fernet key)",
+      "required": true,
+      "secret": true
+    },
+    {
+      "name": "SHAREPOINT_CLIENT_SECRET",
+      "label": "Client secret (only for a confidential app registration)",
+      "secret": true
+    },
+    {
+      "name": "SHAREPOINT_PUBLIC_URL",
+      "label": "Public URL for the browser sign-in fallback (optional)"
+    },
+    {
+      "name": "SHAREPOINT_SITE",
+      "label": "Default site, e.g. contoso.sharepoint.com:/sites/Team (optional)"
+    },
+    {
+      "name": "SHAREPOINT_LIBRARY",
+      "label": "Default document library (optional)"
+    },
+    {
+      "name": "SHAREPOINT_HOST",
+      "label": "Host to listen on",
+      "default": "127.0.0.1"
+    },
+    {
+      "name": "SHAREPOINT_PORT",
+      "label": "Port",
+      "default": "8771"
+    },
+    {
+      "name": "SHAREPOINT_DB_PATH",
+      "label": "Token database file (optional)"
+    },
+    {
+      "name": "SHAREPOINT_MOCK_GRAPH",
+      "label": "Use the built-in test SharePoint (1 = on, optional)"
+    }
+  ]
+}

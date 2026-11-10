@@ -1,0 +1,7 @@
+{
+  "name": "tradingview",
+  "runtime": "php",
+  "entry": "mcp.php",
+  "description": "TradingView market charts",
+  "env": []
+}

@@ -59,6 +59,12 @@ Then add the server's address in SynergyAI under Settings → MCP servers.
 
 ## The manifest (`synergyai-mcp.json`)
 
+The MCP specification defines how a client and a running server talk; it says nothing about how a server is installed,
+started or configured. SynergyAI adds that with a manifest in each server folder, so a server can be imported and run
+without reading its README: which runtime it needs, how to install and start it, and which settings to ask the user
+for. The manifest is a SynergyAI addition, not part of the MCP specification. (The MCP project's registry describes
+published servers with its own `server.json`, which covers similar ground for packaged servers.)
+
 | Field | Meaning |
 |---|---|
 | `name`, `description` | the server's name and what it does |

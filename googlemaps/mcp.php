@@ -189,7 +189,14 @@ function server_url(): string {
     $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
     $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
     $script = $_SERVER['SCRIPT_NAME'] ?? '/mcp.php';
-    return $scheme . '://' . $host . $script;
+    // Behind a gateway: use its forwarding headers (validated, as the value lands in HTML).
+    $fProto = $_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '';
+    if ($fProto === 'http' || $fProto === 'https') $scheme = $fProto;
+    $fHost = $_SERVER['HTTP_X_FORWARDED_HOST'] ?? '';
+    if (preg_match('/^[A-Za-z0-9.-]+(:[0-9]+)?$/', $fHost)) $host = $fHost;
+    $fPrefix = $_SERVER['HTTP_X_FORWARDED_PREFIX'] ?? '';
+    $prefix = preg_match('#^/[A-Za-z0-9_.-]+$#', $fPrefix) ? $fPrefix : '';
+    return $scheme . '://' . $host . $prefix . $script;
 }
 
 // Inject the API key and server URL placeholders into the HTML resource

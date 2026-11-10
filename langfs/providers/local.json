@@ -1,0 +1,9 @@
+{
+  "name": "local", "label": "Local filesystem", "kind": "object_store",
+  "description": "Local filesystem via LangChain FileSystemBlobLoader",
+  "enumerable": true, "recursive": true,
+  "scope_schema": {"fields": [{"name": "path", "label": "Folder path", "required": true}]},
+  "auth_method": "none", "credential_fields": [],
+  "default_formats": ["pdf", "word", "text", "csv", "html"],
+  "pip_packages": [], "system_deps": false
+}

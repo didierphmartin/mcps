@@ -1,0 +1,9 @@
+{
+  "name": "qdrant", "label": "Qdrant", "description": "Qdrant vector DB (self-embeds via FastEmbed)",
+  "available": true, "embeds_internally": true,
+  "connection_schema": {"fields": [
+    {"name": "mode", "label": "Mode", "type": "select", "options": ["local", "remote"], "required": true},
+    {"name": "path", "label": "Local storage path", "type": "text", "required": false},
+    {"name": "url", "label": "Remote URL", "type": "text", "required": false},
+    {"name": "api_key", "label": "API key", "type": "password", "required": false, "mask": true}]}
+}

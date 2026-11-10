@@ -1,0 +1,1 @@
+{"name": "pinecone", "label": "Pinecone", "description": "Pinecone vector DB (coming soon)", "available": false, "embeds_internally": false, "connection_schema": {"fields": []}}

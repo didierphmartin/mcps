@@ -1,0 +1,6 @@
+[tool.pytest.ini_options]
+pythonpath = ["."]
+filterwarnings = [
+    "ignore:`langchain-community` is being sunset:DeprecationWarning",
+    "ignore:Using `httpx` with `starlette.testclient` is deprecated:UserWarning",
+]

@@ -1,0 +1,14 @@
+{
+  "name": "azure", "label": "Azure Blob Storage", "kind": "object_store",
+  "description": "Azure Blob Storage via cloudpathlib (paginated streaming)",
+  "enumerable": true, "recursive": true,
+  "scope_schema": {"fields": [
+    {"name": "bucket", "label": "Container", "required": true},
+    {"name": "prefix", "label": "Prefix (folder)", "required": false}]},
+  "auth_method": "connection_string",
+  "credential_fields": [
+    {"name": "connection_string", "label": "Connection string", "type": "password", "required": false, "mask": true},
+    {"name": "account_url", "label": "Account URL", "type": "text", "required": false}],
+  "default_formats": ["pdf", "word", "text", "csv", "html"],
+  "pip_packages": [], "system_deps": false
+}

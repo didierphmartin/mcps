@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.superpowers/
+.env
+
+# Leftover PHP-prototype artifacts (server retired; see README)
+vendor/
+.phpunit.cache/
+docs/

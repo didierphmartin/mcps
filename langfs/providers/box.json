@@ -1,0 +1,10 @@
+{
+  "name": "box", "label": "Box", "kind": "drive",
+  "description": "Box (not yet available — Phase 3)",
+  "enumerable": true, "recursive": true,
+  "scope_schema": {"fields": [{"name": "folder_id", "label": "Folder ID", "required": false}]},
+  "auth_method": "oauth2",
+  "credential_fields": [{"name": "oauth_token", "label": "OAuth token", "type": "oauth", "required": true}],
+  "default_formats": ["pdf", "word", "text", "csv", "html"],
+  "pip_packages": ["langchain-box"], "system_deps": false
+}

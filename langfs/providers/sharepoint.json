@@ -1,0 +1,10 @@
+{
+  "name": "sharepoint", "label": "SharePoint", "kind": "drive",
+  "description": "Microsoft SharePoint (not yet available — Phase 2)",
+  "enumerable": true, "recursive": true,
+  "scope_schema": {"fields": [{"name": "document_library", "label": "Document library / folder", "required": false}]},
+  "auth_method": "oauth2",
+  "credential_fields": [{"name": "oauth_token", "label": "OAuth token", "type": "oauth", "required": true}],
+  "default_formats": ["pdf", "word", "text", "csv", "html"],
+  "pip_packages": ["o365"], "system_deps": false
+}

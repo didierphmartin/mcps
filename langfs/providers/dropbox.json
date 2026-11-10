@@ -1,0 +1,10 @@
+{
+  "name": "dropbox", "label": "Dropbox", "kind": "drive",
+  "description": "Dropbox (not yet available — Phase 3)",
+  "enumerable": true, "recursive": true,
+  "scope_schema": {"fields": [{"name": "path", "label": "Folder path", "required": false}]},
+  "auth_method": "api_key",
+  "credential_fields": [{"name": "access_token", "label": "Access token", "type": "password", "required": true, "mask": true}],
+  "default_formats": ["pdf", "word", "text", "csv", "html"],
+  "pip_packages": ["dropbox"], "system_deps": false
+}

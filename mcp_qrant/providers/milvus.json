@@ -1,0 +1,1 @@
+{"name": "milvus", "label": "Milvus", "description": "Milvus vector DB (coming soon)", "available": false, "embeds_internally": false, "connection_schema": {"fields": []}}

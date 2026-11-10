@@ -1,0 +1,10 @@
+{
+  "name": "drive", "label": "Google Drive", "kind": "drive",
+  "description": "Google Drive (not yet available — Phase 2)",
+  "enumerable": true, "recursive": true,
+  "scope_schema": {"fields": [{"name": "folder_id", "label": "Folder ID", "required": false}]},
+  "auth_method": "oauth2",
+  "credential_fields": [{"name": "oauth_token", "label": "OAuth token", "type": "oauth", "required": true}],
+  "default_formats": ["pdf", "word", "text", "csv", "html"],
+  "pip_packages": ["langchain-googledrive"], "system_deps": false
+}

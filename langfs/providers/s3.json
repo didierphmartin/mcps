@@ -1,0 +1,16 @@
+{
+  "name": "s3", "label": "Amazon S3", "kind": "object_store",
+  "description": "Amazon S3 via cloudpathlib (paginated streaming)",
+  "enumerable": true, "recursive": true,
+  "scope_schema": {"fields": [
+    {"name": "bucket", "label": "Bucket", "required": true},
+    {"name": "prefix", "label": "Prefix (folder)", "required": false}]},
+  "auth_method": "api_key",
+  "credential_fields": [
+    {"name": "access_key", "label": "Access key", "type": "text", "required": true},
+    {"name": "secret_key", "label": "Secret key", "type": "password", "required": true, "mask": true},
+    {"name": "region", "label": "Region", "type": "text", "required": false},
+    {"name": "endpoint_url", "label": "Endpoint URL (S3-compatible)", "type": "text", "required": false}],
+  "default_formats": ["pdf", "word", "text", "csv", "html"],
+  "pip_packages": [], "system_deps": false
+}

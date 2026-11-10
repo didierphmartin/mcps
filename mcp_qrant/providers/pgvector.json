@@ -1,0 +1,6 @@
+{
+  "name": "pgvector", "label": "PostgreSQL + pgvector", "description": "Postgres pgvector (embeddings computed by the MCP)",
+  "available": true, "embeds_internally": false,
+  "connection_schema": {"fields": [
+    {"name": "dsn", "label": "Postgres DSN", "type": "password", "required": true, "mask": true}]}
+}

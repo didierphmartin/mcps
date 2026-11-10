@@ -1,0 +1,12 @@
+{
+  "name": "github", "label": "GitHub / Git", "kind": "knowledge_store",
+  "description": "GitHub repository files (not yet available — Phase 3)",
+  "enumerable": true, "recursive": true,
+  "scope_schema": {"fields": [
+    {"name": "repo", "label": "owner/repo", "required": true},
+    {"name": "branch", "label": "Branch", "required": false}]},
+  "auth_method": "api_key",
+  "credential_fields": [{"name": "token", "label": "Access token (blank for public)", "type": "password", "required": false, "mask": true}],
+  "default_formats": ["pdf", "word", "text", "csv", "html"],
+  "pip_packages": ["PyGithub"], "system_deps": false
+}

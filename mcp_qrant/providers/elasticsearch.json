@@ -1,0 +1,1 @@
+{"name": "elasticsearch", "label": "Elasticsearch", "description": "Elasticsearch vector DB (coming soon)", "available": false, "embeds_internally": false, "connection_schema": {"fields": []}}

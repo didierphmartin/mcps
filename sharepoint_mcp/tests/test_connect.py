@@ -1,0 +1,328 @@
+from dataclasses import replace
+from urllib.parse import parse_qs, urlparse
+
+import httpx
+import pytest
+
+from auth import Auth, AuthError, Connector
+from store import Store
+
+
+def connector(mock, http, cfg, clock=None):
+    t = clock or [1000.0]
+    return Connector(Auth(http, cfg), Store(cfg.db_path, cfg.secret_key), http, cfg, clock=lambda: t[0]), t
+
+
+def test_device_flow_end_to_end(mock, http, cfg):
+    c, t = connector(mock, http, cfg)
+    s = c.start()
+    assert s["user_code"] == "K7PQ-M2XD" and s["verification_uri"] == "https://microsoft.com/devicelogin"
+    assert c.status(s["connect_id"])["status"] == "pending"
+    mock.device_state = "connected"
+    t[0] += 6
+    done = c.status(s["connect_id"])
+    assert done["status"] == "connected" and done["account"] == "me@contoso.com"
+    key = done["connection_key"]
+    assert len(key) >= 32
+    assert done["credential_header"] == "X-SharePoint-Key"      # the app stores the key under the header the server names
+    again = c.status(s["connect_id"])
+    assert again["status"] == "connected" and "connection_key" not in again   # handed out once
+    assert Store(cfg.db_path, cfg.secret_key).connection(key)["tenant"] == "tid-1"
+
+
+def test_status_respects_poll_interval(mock, http, cfg):
+    c, t = connector(mock, http, cfg)
+    s = c.start()
+    c.status(s["connect_id"])
+    polls = sum(1 for m, p in mock.requests if p.endswith("/token"))
+    t[0] += 1                                   # app polls every 3 s, Microsoft's interval is 5 s
+    c.status(s["connect_id"])
+    assert sum(1 for m, p in mock.requests if p.endswith("/token")) == polls
+
+
+def test_expired_and_declined(mock, http, cfg):
+    c, t = connector(mock, http, cfg)
+    s = c.start()
+    t[0] += 901
+    assert c.status(s["connect_id"])["status"] == "expired"
+    s2 = c.start()
+    mock.device_state = "declined"
+    t[0] += 6
+    assert c.status(s2["connect_id"])["status"] == "denied"
+    assert c.status("nope")["status"] == "unknown"
+
+
+def test_policy_block_offers_redirect(mock, http, cfg):
+    c, t = connector(mock, http, cfg)
+    s = c.start()
+    mock.device_state = "blocked"
+    t[0] += 6
+    st = c.status(s["connect_id"])
+    assert st["status"] == "policy_blocked"
+    assert st["redirect_url"] == f"https://synergy.example.com/sharepoint/auth/start?connect_id={s['connect_id']}"
+
+
+def test_redirect_fallback(mock, http, cfg):
+    c, t = connector(mock, http, cfg)
+    s = c.start()
+    url = urlparse(c.redirect_start(s["connect_id"]))
+    q = parse_qs(url.query)
+    assert url.path.endswith("/oauth2/v2.0/authorize")
+    assert q["code_challenge_method"] == ["S256"] and q["redirect_uri"] == ["https://synergy.example.com/sharepoint/auth/callback"]
+    assert "Connected" in c.redirect_callback(q["state"][0], "auth-code-1")
+    done = c.status(s["connect_id"])
+    assert done["status"] == "connected" and done["connection_key"]
+
+
+def test_redirect_needs_public_url(mock, http, cfg):
+    c, t = connector(mock, http, replace(cfg, public_url=""))
+    s = c.start()
+    mock.device_state = "blocked"
+    t[0] += 6
+    st = c.status(s["connect_id"])
+    assert st["status"] == "policy_blocked" and st["redirect_url"] is None and "SHAREPOINT_PUBLIC_URL" in st["message"]
+
+
+# --- client secret: optional, sent only when configured ---------------------------------------------
+
+
+def _token_forms(mock_http_log):
+    return [parse_qs(r.content.decode()) for r in mock_http_log if r.url.path.endswith("/token")]
+
+
+def _logging_http(mock):
+    log = []
+
+    def handler(request):
+        log.append(request)
+        return mock.handler(request)
+    return httpx.Client(transport=httpx.MockTransport(handler)), log
+
+
+@pytest.mark.parametrize("secret", ["", "s3cret"])
+def test_client_secret_sent_only_when_configured(mock, cfg, secret):
+    http, log = _logging_http(mock)
+    cfg = replace(cfg, client_secret=secret)
+    c, t = connector(mock, http, cfg)
+    s = c.start()
+    mock.device_state = "connected"
+    c.status(s["connect_id"])                                   # device-code polling
+    s2 = c.start()
+    q = parse_qs(urlparse(c.redirect_start(s2["connect_id"])).query)
+    c.redirect_callback(q["state"][0], "auth-code-1")           # PKCE code exchange
+    rt = next(iter(mock.refresh_tokens))
+    Auth(http, cfg).refresh(rt)                                 # refresh
+    forms = _token_forms(log)
+    grants = [f["grant_type"][0] for f in forms]
+    assert grants == ["urn:ietf:params:oauth:grant-type:device_code", "authorization_code", "refresh_token"]
+    for f in forms:
+        if secret:
+            assert f["client_secret"] == [secret]
+        else:
+            assert "client_secret" not in f
+
+
+# --- identity endpoint failures become AuthError ----------------------------------------------------
+
+def _auth_with(handler, cfg):
+    return Auth(httpx.Client(transport=httpx.MockTransport(handler)), cfg)
+
+
+def test_html_gateway_error_becomes_auth_error(cfg):
+    a = _auth_with(lambda r: httpx.Response(502, text="<html><body>Bad Gateway</body></html>"), cfg)
+    for call in (a.device_start, lambda: a.refresh("rt"), lambda: a.redeem_code("c", "v", "https://x/cb")):
+        with pytest.raises(AuthError) as e:
+            call()
+        assert "502" in str(e.value) and len(str(e.value)) < 200
+
+
+def test_transport_error_becomes_auth_error(cfg):
+    def boom(request):
+        raise httpx.ConnectError("connection refused", request=request)
+    a = _auth_with(boom, cfg)
+    with pytest.raises(AuthError):
+        a.device_start()
+    with pytest.raises(AuthError):
+        a.refresh("rt")
+
+
+def test_timeout_during_device_poll_is_pending(cfg):
+    def slow(request):
+        raise httpx.ReadTimeout("timed out", request=request)
+    assert _auth_with(slow, cfg).device_poll("dc-1") == ("pending", None)
+
+
+def test_gateway_502_and_temporarily_unavailable_during_device_poll_are_pending(cfg):
+    html = _auth_with(lambda r: httpx.Response(502, text="<html>Bad Gateway</html>"), cfg)
+    assert html.device_poll("dc-1") == ("pending", None)
+    busy = _auth_with(lambda r: httpx.Response(503, json={"error": "temporarily_unavailable"}), cfg)
+    assert busy.device_poll("dc-1") == ("pending", None)
+
+
+def test_transient_error_keeps_connect_alive(mock, cfg):
+    calls = [0]
+
+    def flaky(request):
+        if request.url.path.endswith("/token") and calls[0] == 0:
+            calls[0] += 1
+            return httpx.Response(502, text="<html>Bad Gateway</html>")
+        return mock.handler(request)
+    http = httpx.Client(transport=httpx.MockTransport(flaky))
+    c, t = connector(mock, http, cfg)
+    s = c.start()
+    assert c.status(s["connect_id"])["status"] == "pending"
+    mock.device_state = "connected"
+    t[0] += 6
+    assert c.status(s["connect_id"])["status"] == "connected"
+
+
+def test_terminal_failure_reports_reason(mock, cfg):
+    def bad_client(request):
+        if request.url.path.endswith("/token"):
+            return httpx.Response(400, json={"error": "invalid_client",
+                                             "error_description": "AADSTS7000218: client_assertion or client_secret required."})
+        return mock.handler(request)
+    http = httpx.Client(transport=httpx.MockTransport(bad_client))
+    c, t = connector(mock, http, replace(cfg, client_secret="s3cret"))
+    s = c.start()
+    st = c.status(s["connect_id"])
+    assert st["status"] == "failed" and "AADSTS7000218" in st["message"] and "s3cret" not in st["message"]
+    again = c.status(s["connect_id"])                       # the reason survives on later polls
+    assert again == st
+
+
+def test_redirect_start_needs_public_url(mock, http, cfg):
+    c, t = connector(mock, http, replace(cfg, public_url=""))
+    s = c.start()
+    with pytest.raises(AuthError) as e:
+        c.redirect_start(s["connect_id"])
+    assert "SHAREPOINT_PUBLIC_URL" in str(e.value)
+
+
+def test_aadsts53003_is_policy_blocked(cfg):
+    a = _auth_with(lambda r: httpx.Response(400, json={"error": "invalid_grant",
+                                                        "error_description": "AADSTS53003: blocked"}), cfg)
+    assert a.device_poll("dc-1") == ("policy_blocked", None)
+
+
+# fix round B7 ----------------------------------------------------------------------------
+
+def _me_fails(mock, monkeypatch, times):
+    real, left = mock._graph, [times]
+
+    def flaky(path, q):
+        if path == "/me" and left[0]:
+            left[0] -= 1
+            return httpx.Response(503, json={"error": {"code": "ServiceUnavailable"}})
+        return real(path, q)
+    monkeypatch.setattr(mock, "_graph", flaky)
+
+
+def test_identity_lookup_failing_twice_fails_the_connect(mock, http, cfg, monkeypatch):
+    c, t = connector(mock, http, cfg)
+    s = c.start()
+    mock.device_state = "connected"
+    _me_fails(mock, monkeypatch, times=2)
+    first = c.status(s["connect_id"])
+    assert first["status"] == "failed" and "graph_error" in first["message"]
+    assert not [tok for tok in mock.access_tokens | mock.refresh_tokens if tok in first["message"]]
+    t[0] += 10
+    assert c.status(s["connect_id"]) == first
+
+
+def test_identity_lookup_is_retried_once(mock, http, cfg, monkeypatch):
+    c, _ = connector(mock, http, cfg)
+    s = c.start()
+    mock.device_state = "connected"
+    _me_fails(mock, monkeypatch, times=1)
+    assert c.status(s["connect_id"])["status"] == "connected"
+
+
+def test_redirect_identity_lookup_failure_fails_the_connect(mock, http, cfg, monkeypatch):
+    c, _ = connector(mock, http, cfg)
+    s = c.start()
+    state = parse_qs(urlparse(c.redirect_start(s["connect_id"])).query)["state"][0]
+    _me_fails(mock, monkeypatch, times=2)
+    assert c.redirect_callback(state, "code-1").startswith("Sign-in failed")
+    assert c.status(s["connect_id"])["status"] == "failed"
+
+
+# final review fixes ------------------------------------------------------------------------
+
+def _bad_client_http(mock):
+    def handler(request):
+        if request.url.path.endswith("/token") and "device_code" in request.content.decode():
+            return httpx.Response(400, json={"error": "invalid_client", "error_description": "AADSTS7000218"})
+        return mock.handler(request)
+    return httpx.Client(transport=httpx.MockTransport(handler))
+
+
+def _ended(c, t, mock, how):
+    """A connect that ended as expired, denied or failed."""
+    s = c.start()
+    match how:
+        case "expired":
+            t[0] += 901
+        case "denied":
+            mock.device_state = "declined"
+            t[0] += 6
+    return s["connect_id"], c.status(s["connect_id"])
+
+
+@pytest.mark.parametrize("how", ["expired", "denied", "failed"])
+def test_ended_connect_offers_browser_sign_in(mock, http, cfg, how):
+    c, t = connector(mock, _bad_client_http(mock) if how == "failed" else http, cfg)
+    cid, st = _ended(c, t, mock, how)
+    url = f"https://synergy.example.com/sharepoint/auth/start?connect_id={cid}"
+    assert st["status"] == how and st["redirect_url"] == url
+    assert c.status(cid)["redirect_url"] == url                      # later polls repeat it
+    q = parse_qs(urlparse(c.redirect_start(cid)).query)              # the link actually works
+    assert c.status(cid)["status"] == "pending"
+    assert "Connected" in c.redirect_callback(q["state"][0], "auth-code-1")
+    done = c.status(cid)
+    assert done["status"] == "connected" and done["connection_key"]
+
+
+@pytest.mark.parametrize("how", ["expired", "denied", "failed"])
+def test_ended_connect_without_public_url_has_no_redirect(mock, http, cfg, how):
+    c, t = connector(mock, _bad_client_http(mock) if how == "failed" else http, replace(cfg, public_url=""))
+    _, st = _ended(c, t, mock, how)
+    assert st["status"] == how and "redirect_url" not in st
+
+
+def test_browser_sign_in_is_not_cut_short_by_the_device_code_expiry(mock, http, cfg):
+    c, t = connector(mock, http, cfg)
+    s = c.start()
+    mock.device_state = "blocked"
+    t[0] += 6
+    assert c.status(s["connect_id"])["status"] == "policy_blocked"
+    q = parse_qs(urlparse(c.redirect_start(s["connect_id"])).query)
+    t[0] += 890                                               # the device code is about to expire
+    polls = sum(1 for _, p in mock.requests if p.endswith("/token"))
+    assert c.status(s["connect_id"])["status"] == "pending"
+    assert sum(1 for _, p in mock.requests if p.endswith("/token")) == polls   # no device polling meanwhile
+    t[0] += 20                                                # past the device code's life
+    assert "Connected" in c.redirect_callback(q["state"][0], "auth-code-1")
+    assert c.status(s["connect_id"])["status"] == "connected"
+
+
+def test_late_device_failure_does_not_hide_a_concurrent_connect(mock, http, cfg, monkeypatch):
+    c, t = connector(mock, http, cfg)
+    s = c.start()
+
+    def racing_poll(device_code):                             # another request connected meanwhile
+        c.store.finish_connect(s["connect_id"], "connected", "key-9")
+        return "failed", {"message": "AADSTS70000: code already redeemed"}
+    monkeypatch.setattr(c.auth, "device_poll", racing_poll)
+    c.store.save_connection("key-9", "me@contoso.com", "tid-1", "RT")
+    st = c.status(s["connect_id"])
+    assert st["status"] == "connected" and st["connection_key"] == "key-9"
+
+
+def test_start_offers_the_browser_sign_in_from_the_outset(mock, http, cfg):
+    c, t = connector(mock, http, cfg)
+    s = c.start()
+    assert s["redirect_url"] == f"{cfg.public_url}/auth/start?connect_id={s['connect_id']}"
+    assert urlparse(c.redirect_start(s["connect_id"])).path.endswith("/oauth2/v2.0/authorize")   # while the code is pending
+    plain, _ = connector(mock, http, replace(cfg, public_url=""))
+    assert "redirect_url" not in plain.start()

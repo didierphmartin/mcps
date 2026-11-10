@@ -1,0 +1,1 @@
+{"name": "weaviate", "label": "Weaviate", "description": "Weaviate vector DB (coming soon)", "available": false, "embeds_internally": false, "connection_schema": {"fields": []}}

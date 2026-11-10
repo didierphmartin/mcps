@@ -1,0 +1,14 @@
+{
+  "name": "gcs", "label": "Google Cloud Storage", "kind": "object_store",
+  "description": "Google Cloud Storage via cloudpathlib (paginated streaming)",
+  "enumerable": true, "recursive": true,
+  "scope_schema": {"fields": [
+    {"name": "bucket", "label": "Bucket", "required": true},
+    {"name": "prefix", "label": "Prefix (folder)", "required": false}]},
+  "auth_method": "service_account_json",
+  "credential_fields": [
+    {"name": "service_account_json", "label": "Service account JSON path", "type": "file", "required": true},
+    {"name": "project", "label": "GCP project", "type": "text", "required": false}],
+  "default_formats": ["pdf", "word", "text", "csv", "html"],
+  "pip_packages": [], "system_deps": false
+}

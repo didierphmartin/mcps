@@ -1,0 +1,1 @@
+{"name": "faiss", "label": "FAISS", "description": "FAISS vector DB (coming soon)", "available": false, "embeds_internally": false, "connection_schema": {"fields": []}}

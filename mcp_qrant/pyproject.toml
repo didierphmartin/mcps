@@ -1,0 +1,6 @@
+[tool.pytest.ini_options]
+pythonpath = ["."]
+filterwarnings = [
+    "ignore:.*method has been deprecated and will be removed in 1.17:UserWarning:qdrant_client",
+    "ignore::starlette.exceptions.StarletteDeprecationWarning",
+]

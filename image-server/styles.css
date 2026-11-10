@@ -1,0 +1,245 @@
+/* Global styles */
+* {
+    box-sizing: border-box;
+}
+
+html, body {
+    font-family: system-ui, -apple-system, sans-serif;
+    font-size: 1rem;
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    color-scheme: light dark;
+}
+
+#root {
+    height: 100%;
+}
+
+/* Container */
+.container {
+    display: flex;
+    flex-direction: column;
+    min-width: 850px;
+    min-height: 450px;
+    height: 100%;
+    padding: 16px;
+    gap: 16px;
+}
+
+/* Form styles */
+.form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.field-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.label {
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: inherit;
+}
+
+.prompt-display {
+    padding: 12px;
+    background: rgba(128, 128, 128, 0.1);
+    border-radius: 8px;
+    font-style: italic;
+    line-height: 1.5;
+    border: 1px solid rgba(128, 128, 128, 0.2);
+}
+
+.prompt-input {
+    padding: 12px;
+    font-size: 1rem;
+    border: 1px solid rgba(128, 128, 128, 0.3);
+    border-radius: 8px;
+    background: transparent;
+    color: inherit;
+    resize: vertical;
+    min-height: 80px;
+    font-family: inherit;
+}
+
+.prompt-input:focus {
+    outline: 2px solid #0066cc;
+    outline-offset: 2px;
+}
+
+.select {
+    padding: 10px 12px;
+    font-size: 1rem;
+    border: 1px solid rgba(128, 128, 128, 0.3);
+    border-radius: 6px;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+}
+
+.select:focus {
+    outline: 2px solid #0066cc;
+    outline-offset: 2px;
+}
+
+/* Buttons */
+.generate-button {
+    padding: 12px 24px;
+    font-size: 1rem;
+    font-weight: 600;
+    background: #0066cc;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.generate-button:hover:not(:disabled) {
+    background: #0052a3;
+}
+
+.generate-button:disabled {
+    background: #999;
+    cursor: not-allowed;
+}
+
+.reset-button {
+    padding: 10px 20px;
+    font-size: 0.875rem;
+    background: transparent;
+    color: inherit;
+    border: 1px solid rgba(128, 128, 128, 0.3);
+    border-radius: 6px;
+    cursor: pointer;
+    text-decoration: none;
+}
+
+.reset-button:hover {
+    background: rgba(128, 128, 128, 0.1);
+}
+
+.download-button {
+    padding: 10px 20px;
+    font-size: 0.875rem;
+    background: #0066cc;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.download-button:hover {
+    background: #0052a3;
+}
+
+/* Image container */
+.image-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    min-height: 200px;
+}
+
+.image-with-actions {
+    flex: 1;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 24px;
+    width: 100%;
+}
+
+.generated-image {
+    max-width: 70%;
+    max-height: 100%;
+    object-fit: contain;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Loading state */
+.loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    color: #666;
+}
+
+.spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid rgba(128, 128, 128, 0.2);
+    border-top-color: #0066cc;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Error state */
+.error {
+    padding: 12px 16px;
+    background: #fee;
+    border: 1px solid #fcc;
+    border-radius: 8px;
+    color: #c00;
+}
+
+/* Button group */
+.button-group {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    justify-content: center;
+}
+
+/* Connecting state */
+.connecting {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: #666;
+}
+
+/* Hidden utility */
+.hidden {
+    display: none !important;
+}
+
+/* Header */
+.header {
+    text-align: center;
+    margin-bottom: 16px;
+}
+
+.header h1 {
+    margin: 0 0 8px 0;
+    font-size: 1.5rem;
+    font-weight: 600;
+}
+
+.header p {
+    margin: 0;
+    color: #666;
+    font-size: 0.875rem;
+}

@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  <title>TradingView Chart</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 14px;
+      overflow: hidden;
+      background: #ffffff;
+      color: #131722;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      html, body {
+        background: #1e222d;
+        color: #d1d4dc;
+      }
+    }
+
+    .main {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .tradingview-widget-container {
+      flex: 1;
+      width: 100%;
+      height: 100%;
+    }
+
+    .tradingview-widget-container__widget {
+      width: 100%;
+      height: calc(100% - 32px);
+    }
+
+    .tradingview-widget-copyright {
+      font-size: 13px;
+      line-height: 32px;
+      text-align: center;
+      vertical-align: middle;
+      font-family: -apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, Ubuntu, sans-serif;
+      color: #787b86;
+    }
+
+    .tradingview-widget-copyright a {
+      text-decoration: none;
+    }
+
+    .tradingview-widget-copyright .blue-text {
+      color: #2962ff;
+    }
+
+    .tradingview-widget-copyright a:hover .blue-text {
+      color: #1e53e5;
+    }
+
+    .tradingview-widget-copyright .trademark {
+      color: #787b86;
+    }
+
+    .loading {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      width: 100%;
+      height: 100%;
+      min-height: 400px;
+      color: #787b86;
+    }
+
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid rgba(41, 98, 255, 0.2);
+      border-top-color: #2962ff;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .error {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: 100%;
+      min-height: 200px;
+      padding: 20px;
+      color: #f44336;
+      background: rgba(244, 67, 54, 0.1);
+      border-radius: 8px;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+  </style>
+</head>
+<body>
+  <div class="main">
+    <!-- Loading state -->
+    <div id="loading" class="loading">
+      <div class="spinner"></div>
+      <span>Waiting for chart data...</span>
+    </div>
+
+    <!-- Error state -->
+    <div id="error" class="error hidden"></div>
+
+    <!-- Chart container -->
+    <div id="chart-container" class="tradingview-widget-container hidden">
+      <div class="tradingview-widget-container__widget"></div>
+      <div class="tradingview-widget-copyright">
+        <a id="chart-link" href="https://www.tradingview.com/" rel="noopener nofollow" target="_blank">
+          <span class="blue-text" id="chart-symbol-text">AAPL stock chart</span>
+        </a>
+        <span class="trademark"> by TradingView</span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // State
+    let currentSymbol = 'AAPL';
+    let currentInterval = 'D';
+
+    // Elements
+    const loading = document.getElementById('loading');
+    const errorDiv = document.getElementById('error');
+    const chartContainer = document.getElementById('chart-container');
+    const chartLink = document.getElementById('chart-link');
+    const chartSymbolText = document.getElementById('chart-symbol-text');
+
+    function showLoading() {
+      loading.classList.remove('hidden');
+      errorDiv.classList.add('hidden');
+      chartContainer.classList.add('hidden');
+    }
+
+    function showError(message) {
+      loading.classList.add('hidden');
+      errorDiv.classList.remove('hidden');
+      errorDiv.innerHTML = '<strong>Error:</strong> ' + message;
+      chartContainer.classList.add('hidden');
+    }
+
+    function showChart() {
+      loading.classList.add('hidden');
+      errorDiv.classList.add('hidden');
+      chartContainer.classList.remove('hidden');
+    }
+
+    // Load TradingView widget
+    function loadTradingViewWidget(symbol, interval) {
+      currentSymbol = symbol;
+      currentInterval = interval;
+
+      // Update copyright link
+      const symbolForUrl = symbol.replace(':', '-');
+      chartLink.href = 'https://www.tradingview.com/symbols/' + symbolForUrl + '/';
+      chartSymbolText.textContent = symbol + ' stock chart';
+
+      // Clear existing widget content (keep copyright div)
+      const widgetDiv = chartContainer.querySelector('.tradingview-widget-container__widget');
+      widgetDiv.innerHTML = '';
+
+      // Remove any previously injected TradingView scripts
+      const existingScripts = chartContainer.querySelectorAll('script');
+      existingScripts.forEach(function(s) { s.remove(); });
+
+      // Detect timezone and locale
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Etc/UTC';
+      const locale = (navigator.language || 'en').split('-')[0];
+
+      // Create and inject TradingView widget script
+      var script = document.createElement('script');
+      script.src = 'https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js';
+      script.type = 'text/javascript';
+      script.async = true;
+      script.innerHTML = JSON.stringify({
+        autosize: true,
+        symbol: symbol,
+        interval: interval,
+        timezone: timezone,
+        theme: 'light',
+        style: '1',
+        locale: locale,
+        backgroundColor: '#ffffff',
+        gridColor: 'rgba(46, 46, 46, 0.06)',
+        allow_symbol_change: true,
+        calendar: false,
+        details: false,
+        hotlist: false,
+        hide_top_toolbar: false,
+        hide_side_toolbar: true,
+        hide_legend: false,
+        hide_volume: false,
+        save_image: true,
+        withdateranges: false,
+        watchlist: [],
+        compareSymbols: [],
+        studies: []
+      });
+
+      chartContainer.appendChild(script);
+      showChart();
+    }
+
+    // Listen for messages from MCP host
+    window.addEventListener('message', function(event) {
+      var data = event.data;
+      if (!data) return;
+
+      console.log('[TradingView MCP] Received message:', data.type || data.method || 'unknown', data);
+
+      // Handle JSON-RPC 2.0 notifications from host
+      if (data.jsonrpc === '2.0' && data.method) {
+        if (data.method === 'ui/notifications/tool-input') {
+          var args = (data.params && data.params.arguments) || {};
+          var symbol = args.symbol || 'AAPL';
+          var interval = args.interval || 'D';
+          loadTradingViewWidget(symbol, interval);
+        }
+        return;
+      }
+
+      // Handle direct arguments (legacy/alternative formats)
+      if (data.type === 'mcp-structured-content' || data.structuredContent) {
+        var sc = data.structuredContent || data;
+        if (sc.symbol) {
+          loadTradingViewWidget(sc.symbol, sc.interval || 'D');
+        }
+      } else if (data.symbol) {
+        loadTradingViewWidget(data.symbol, data.interval || 'D');
+      }
+    });
+
+    // Check URL parameters
+    var urlParams = new URLSearchParams(window.location.search);
+    var urlSymbol = urlParams.get('symbol');
+    var urlInterval = urlParams.get('interval');
+    if (urlSymbol) {
+      loadTradingViewWidget(urlSymbol, urlInterval || 'D');
+    }
+
+    // Check for MCP_INIT_DATA (injected by host)
+    if (window.MCP_INIT_DATA && window.MCP_INIT_DATA.symbol) {
+      loadTradingViewWidget(window.MCP_INIT_DATA.symbol, window.MCP_INIT_DATA.interval || 'D');
+    }
+
+    // Listen for mcp-init event
+    window.addEventListener('mcp-init', function(event) {
+      if (event.detail && event.detail.symbol) {
+        loadTradingViewWidget(event.detail.symbol, event.detail.interval || 'D');
+      }
+    });
+
+    // Notify host that we're ready
+    window.parent.postMessage({ type: 'mcp-app-ready' }, '*');
+
+    // Send size to host (height only, let host use default width)
+    window.parent.postMessage({
+      jsonrpc: '2.0',
+      method: 'ui/notifications/size-changed',
+      params: { height: 600 }
+    }, '*');
+  </script>
+</body>
+</html>

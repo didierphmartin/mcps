@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Video Generator</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 16px;
+      height: 100%;
+      width: 100%;
+      overflow: hidden;
+      background: #ffffff !important;
+      color: #1a1a1a !important;
+    }
+
+    .container {
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      align-items: center;
+      height: 100%;
+      width: 100%;
+      padding: 12px 16px;
+      gap: 12px;
+      overflow: auto;
+    }
+
+    .form {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      width: 100%;
+      max-width: 750px;
+      flex: 1;
+    }
+
+    .field-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      width: 100%;
+    }
+
+    .field-group.prompt-field {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .field-row {
+      display: flex;
+      gap: 12px;
+      width: 100%;
+    }
+
+    .field-row .field-group {
+      flex: 1;
+    }
+
+    .field-row .field-group:first-child {
+      flex: 1.5;
+    }
+
+    .field-row .field-group:last-child {
+      flex: 0.85;
+    }
+
+    .label {
+      font-weight: 600;
+      font-size: 0.875rem;
+      color: #1a1a1a !important;
+    }
+
+    .prompt-display {
+      padding: 12px;
+      background: #ffffff !important;
+      border-radius: 8px;
+      font-style: normal;
+      line-height: 1.5;
+      border: 1px solid #ccc !important;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
+      width: 100%;
+      color: #1a1a1a !important;
+      font-family: inherit;
+      font-size: 1rem;
+      resize: none;
+      flex: 1;
+      min-height: 150px;
+    }
+
+    .prompt-display:focus {
+      outline: 2px solid #0066cc;
+      outline-offset: 2px;
+      border-color: #0066cc !important;
+    }
+
+    .select {
+      padding: 10px 12px;
+      font-size: 1rem;
+      border: 1px solid #ccc !important;
+      border-radius: 6px;
+      background: #ffffff !important;
+      color: #1a1a1a !important;
+      cursor: pointer;
+      width: 100%;
+    }
+
+    .select:focus {
+      outline: 2px solid #0066cc;
+      outline-offset: 2px;
+    }
+
+    .button {
+      padding: 12px 24px;
+      font-size: 1rem;
+      font-weight: 600;
+      background: #0066cc;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.2s;
+      width: 100%;
+    }
+
+    .button:hover:not(:disabled) {
+      background: #0052a3;
+    }
+
+    .button:disabled {
+      background: #999;
+      cursor: not-allowed;
+    }
+
+    .video-container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      min-height: 200px;
+    }
+
+    .generated-video {
+      max-width: 100%;
+      max-height: 300px;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+
+    .loading {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      color: #666 !important;
+    }
+
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid #e0e0e0 !important;
+      border-top-color: #0066cc !important;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .error {
+      padding: 12px 16px;
+      background: #fee;
+      border: 1px solid #fcc;
+      border-radius: 8px;
+      color: #c00;
+      width: 100%;
+    }
+
+    .button-group {
+      display: flex;
+      gap: 12px;
+      width: 100%;
+    }
+
+    .button-secondary {
+      padding: 10px 20px;
+      font-size: 0.875rem;
+      background: #ffffff !important;
+      color: #1a1a1a !important;
+      border: 1px solid #ccc !important;
+      border-radius: 6px;
+      cursor: pointer;
+      flex: 1;
+      text-align: center;
+      text-decoration: none;
+    }
+
+    .button-secondary:hover {
+      background: #f0f0f0 !important;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    .info-text {
+      font-size: 0.75rem;
+      color: #666;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Initial state: waiting for prompt -->
+    <div id="connecting" class="loading">
+      <div class="spinner"></div>
+      <div>Waiting for prompt...</div>
+    </div>
+
+    <!-- Form state -->
+    <div id="form-section" class="form hidden">
+      <div class="field-group prompt-field">
+        <label class="label">Prompt</label>
+        <textarea id="prompt-text" class="prompt-display" placeholder="Enter your video prompt..."></textarea>
+      </div>
+
+      <div class="field-row">
+        <div class="field-group" style="flex: 1.2;">
+          <label class="label">Provider</label>
+          <select id="provider" class="select">
+            <option value="gemini">Gemini Veo 3.1 (Audio)</option>
+            <option value="grok">Grok Imagine</option>
+          </select>
+        </div>
+
+        <div class="field-group">
+          <label class="label">Aspect Ratio</label>
+          <select id="aspect-ratio" class="select">
+            <option value="16:9">16:9 (Widescreen)</option>
+            <option value="9:16">9:16 (Portrait)</option>
+          </select>
+        </div>
+
+        <div class="field-group">
+          <label class="label">Resolution</label>
+          <select id="resolution" class="select">
+            <option value="720p">720p (HD)</option>
+            <option value="1080p">1080p (Full HD)</option>
+          </select>
+        </div>
+
+        <div class="field-group" style="flex: 0.7;">
+          <label class="label">Duration</label>
+          <select id="duration" class="select">
+            <option value="4">4s</option>
+            <option value="5">5s</option>
+            <option value="6">6s</option>
+            <option value="7">7s</option>
+            <option value="8" selected>8s</option>
+            <option value="10">10s</option>
+          </select>
+        </div>
+      </div>
+
+      <button id="generate-btn" class="button">Generate Video</button>
+      <div id="provider-info" class="info-text">Gemini Veo: 4-8s, 720p/1080p, native audio | Grok: 5-10s, 720p</div>
+    </div>
+
+    <!-- Loading state -->
+    <div id="loading-section" class="loading hidden">
+      <div class="spinner"></div>
+      <div id="loading-status">Generating video...</div>
+      <div class="info-text">This may take 1-6 minutes</div>
+    </div>
+
+    <!-- Error state -->
+    <div id="error-section" class="hidden">
+      <div class="error" id="error-message"></div>
+      <button id="error-back-btn" class="button" style="margin-top: 12px;">Try Again</button>
+    </div>
+
+    <!-- Video result -->
+    <div id="video-section" class="video-container hidden">
+      <video id="generated-video" class="generated-video" controls autoplay loop>
+        Your browser does not support video playback.
+      </video>
+      <div class="button-group">
+        <button id="reset-btn" class="button-secondary">Generate Another</button>
+        <button id="download-btn" class="button-secondary">Download</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // State
+    let currentPrompt = '';
+    let currentProvider = 'gemini';
+    let currentRatio = '16:9';
+    let currentResolution = '720p';
+    let currentDuration = '8';
+    let currentJobId = null;
+    let pollingInterval = null;
+    let hostOrigin = '*';
+    let requestId = 0;
+    const pendingRequests = new Map();
+
+    // Elements
+    const connecting = document.getElementById('connecting');
+    const formSection = document.getElementById('form-section');
+    const promptText = document.getElementById('prompt-text');
+    const provider = document.getElementById('provider');
+    const aspectRatio = document.getElementById('aspect-ratio');
+    const resolution = document.getElementById('resolution');
+    const duration = document.getElementById('duration');
+    const providerInfo = document.getElementById('provider-info');
+    const generateBtn = document.getElementById('generate-btn');
+    const loadingSection = document.getElementById('loading-section');
+    const loadingStatus = document.getElementById('loading-status');
+    const errorSection = document.getElementById('error-section');
+    const errorMessage = document.getElementById('error-message');
+    const errorBackBtn = document.getElementById('error-back-btn');
+    const videoSection = document.getElementById('video-section');
+    const generatedVideo = document.getElementById('generated-video');
+    const resetBtn = document.getElementById('reset-btn');
+    const downloadBtn = document.getElementById('download-btn');
+
+    // Show a specific section
+    function showSection(section) {
+      [connecting, formSection, loadingSection, errorSection, videoSection].forEach(el => {
+        el.classList.add('hidden');
+      });
+      section.classList.remove('hidden');
+    }
+
+    // Show error
+    function showError(message) {
+      errorMessage.textContent = message;
+      showSection(errorSection);
+    }
+
+    // Set loading status
+    function setStatus(msg) {
+      if (loadingStatus) loadingStatus.textContent = msg;
+    }
+
+    // Stop polling for job status
+    function stopPolling() {
+      if (pollingInterval) {
+        clearInterval(pollingInterval);
+        pollingInterval = null;
+      }
+    }
+
+    // Start polling for job status
+    function startPolling() {
+      stopPolling(); // Clear any existing interval
+      pollingInterval = setInterval(async () => {
+        if (!currentJobId) {
+          stopPolling();
+          return;
+        }
+        try {
+          console.log('[MCP-App] Polling for job:', currentJobId);
+          const result = await callServerTool('generate-video', {
+            prompt: currentPrompt,
+            provider: currentProvider,
+            aspectRatio: currentRatio,
+            resolution: currentResolution,
+            duration: currentDuration,
+            generate: true,
+            jobId: currentJobId
+          });
+          console.log('[MCP-App] Poll result:', result);
+          handleToolResult(result);
+        } catch (err) {
+          console.error('[MCP-App] Polling error:', err);
+          // Don't stop polling on error, keep trying
+        }
+      }, 5000); // Poll every 5 seconds
+    }
+
+    // Update form options based on provider
+    function updateProviderOptions() {
+      const isGrok = currentProvider === 'grok';
+
+      // Update resolution options
+      const res1080Option = resolution.querySelector('option[value="1080p"]');
+      if (isGrok) {
+        res1080Option.disabled = true;
+        if (resolution.value === '1080p') {
+          resolution.value = '720p';
+          currentResolution = '720p';
+        }
+      } else {
+        res1080Option.disabled = false;
+      }
+
+      // Update duration options
+      const durationOptions = duration.querySelectorAll('option');
+      durationOptions.forEach(opt => {
+        const val = parseInt(opt.value);
+        if (isGrok) {
+          // Grok: 5-10 seconds
+          opt.disabled = val < 5 || val > 10;
+        } else {
+          // Gemini: 4, 6, 8 seconds only
+          opt.disabled = ![4, 6, 8].includes(val);
+        }
+      });
+
+      // Adjust current duration if invalid
+      const currentDurVal = parseInt(currentDuration);
+      if (isGrok && (currentDurVal < 5 || currentDurVal > 10)) {
+        duration.value = '8';
+        currentDuration = '8';
+      } else if (!isGrok && ![4, 6, 8].includes(currentDurVal)) {
+        duration.value = '8';
+        currentDuration = '8';
+      }
+
+      // Update info text
+      if (isGrok) {
+        providerInfo.textContent = 'Grok Imagine: 5-10s, 720p only, fast generation (~17s)';
+      } else {
+        providerInfo.textContent = 'Gemini Veo 3.1: 4-8s, 720p/1080p, native audio with lip-sync';
+      }
+    }
+
+    // Handle structured content from MCP host
+    function handleStructuredContent(data) {
+      if (!data) return;
+
+      if (data.status === 'ready') {
+        currentPrompt = data.prompt || '';
+        promptText.value = currentPrompt;
+        if (data.provider) {
+          provider.value = data.provider;
+          currentProvider = data.provider;
+        }
+        if (data.aspectRatio) {
+          aspectRatio.value = data.aspectRatio;
+          currentRatio = data.aspectRatio;
+        }
+        if (data.resolution) {
+          resolution.value = data.resolution;
+          currentResolution = data.resolution;
+        }
+        currentDuration = data.duration || '8';
+        duration.value = currentDuration;
+        updateProviderOptions();
+        showSection(formSection);
+      } else if (data.status === 'generating') {
+        // Async generation started - poll for completion
+        currentJobId = data.jobId;
+        showSection(loadingSection);
+        setStatus('Generating video... (this may take 1-6 minutes)');
+        startPolling();
+      } else if (data.status === 'completed') {
+        stopPolling();
+        if (data.videoBase64) {
+          const mimeType = data.mimeType || 'video/mp4';
+          generatedVideo.src = `data:${mimeType};base64,${data.videoBase64}`;
+          showSection(videoSection);
+        }
+      } else if (data.status === 'error') {
+        stopPolling();
+        showError(data.error || 'An error occurred');
+      }
+    }
+
+    // Handle tool result from MCP response
+    function handleToolResult(result) {
+      if (result.structuredContent) {
+        handleStructuredContent(result.structuredContent);
+      } else if (result.content) {
+        const textContent = result.content.find(c => c.type === 'text');
+        if (result.isError && textContent) {
+          showError(textContent.text);
+        }
+      }
+    }
+
+    // Listen for messages from MCP host
+    window.addEventListener('message', (event) => {
+      hostOrigin = event.origin;
+      const data = event.data;
+
+      if (!data) return;
+
+      console.log('[MCP-App] Received message:', data.type || data.method || 'unknown', data);
+
+      // Handle JSON-RPC 2.0 messages from host
+      if (data.jsonrpc === '2.0') {
+        // Handle notifications (no id)
+        if (data.method) {
+          if (data.method === 'ui/notifications/tool-input') {
+            const args = data.params?.arguments || {};
+            currentPrompt = args.prompt || '';
+            currentProvider = args.provider || 'gemini';
+            currentRatio = args.aspectRatio || '16:9';
+            currentResolution = args.resolution || '720p';
+            currentDuration = args.duration || '8';
+            promptText.value = currentPrompt;
+            provider.value = currentProvider;
+            aspectRatio.value = currentRatio;
+            resolution.value = currentResolution;
+            duration.value = currentDuration;
+            updateProviderOptions();
+            showSection(formSection);
+          } else if (data.method === 'ui/notifications/tool-result') {
+            handleToolResult(data.params || {});
+          }
+          return;
+        }
+
+        // Handle responses (has id, no method)
+        if (data.id !== undefined) {
+          const pending = pendingRequests.get(data.id);
+          if (pending) {
+            console.log('[MCP-App] Got JSON-RPC response for id:', data.id, data);
+            pendingRequests.delete(data.id);
+            if (data.error) {
+              pending.reject(new Error(data.error.message || 'Unknown error'));
+            } else {
+              pending.resolve(data.result);
+            }
+          }
+          return;
+        }
+      }
+
+      // Handle legacy formats
+      if (data.type === 'mcp-app-response') {
+        const pending = pendingRequests.get(data.requestId);
+        if (pending) {
+          pendingRequests.delete(data.requestId);
+          if (data.error) {
+            showError(data.error);
+          } else {
+            handleToolResult(data.result || {});
+          }
+        }
+        return;
+      }
+
+      if (data.type === 'mcp-structured-content' || data.structuredContent) {
+        handleStructuredContent(data.structuredContent || data);
+      } else if (data.type === 'mcp-tool-result') {
+        handleToolResult(data.result || data);
+      } else if (data.status) {
+        handleStructuredContent(data);
+      }
+    });
+
+    // Call MCP tool via host using JSON-RPC 2.0 protocol
+    async function callServerTool(name, args) {
+      setStatus('Sending request to host...');
+
+      return new Promise((resolve, reject) => {
+        const id = ++requestId;
+        pendingRequests.set(id, { resolve, reject });
+
+        const message = {
+          jsonrpc: '2.0',
+          id: id,
+          method: 'tools/call',
+          params: { name, arguments: args }
+        };
+        console.log('[MCP-App] Sending JSON-RPC request:', message);
+        window.parent.postMessage(message, '*');
+
+        setStatus('Generating video... (this may take 1-6 minutes)');
+
+        // Timeout after 10 minutes for video generation
+        setTimeout(() => {
+          if (pendingRequests.has(id)) {
+            pendingRequests.delete(id);
+            reject(new Error('Request timeout - video generation took too long'));
+          }
+        }, 600000);
+      });
+    }
+
+    // Generate button click
+    generateBtn.addEventListener('click', async () => {
+      try {
+        console.log('[MCP-App] Generate button clicked');
+        showSection(loadingSection);
+
+        currentPrompt = promptText.value.trim();
+        if (!currentPrompt) {
+          showError('Please enter a prompt for the video');
+          return;
+        }
+        currentProvider = provider.value;
+        currentRatio = aspectRatio.value;
+        currentResolution = resolution.value;
+        currentDuration = duration.value;
+
+        const providerName = currentProvider === 'grok' ? 'Grok Imagine' : 'Gemini Veo';
+        setStatus(`Starting video generation with ${providerName}...`);
+
+        const result = await callServerTool('generate-video', {
+          prompt: currentPrompt,
+          provider: currentProvider,
+          aspectRatio: currentRatio,
+          resolution: currentResolution,
+          duration: currentDuration,
+          generate: true
+        });
+
+        console.log('[MCP-App] Got result:', result);
+        setStatus('Processing result...');
+        handleToolResult(result);
+      } catch (err) {
+        console.error('[MCP-App] Error:', err);
+        showError(err.message || 'Failed to generate video');
+      }
+    });
+
+    // Provider change - update available options
+    provider.addEventListener('change', () => {
+      currentProvider = provider.value;
+      updateProviderOptions();
+    });
+
+    // Reset button click
+    resetBtn.addEventListener('click', () => {
+      console.log('[MCP-App] Generate Another clicked');
+      showSection(formSection);
+    });
+
+    // Error back button click
+    errorBackBtn.addEventListener('click', () => {
+      console.log('[MCP-App] Try Again clicked');
+      showSection(formSection);
+    });
+
+    // Resolution change - 1080p requires 8 seconds duration
+    resolution.addEventListener('change', () => {
+      if (resolution.value === '1080p') {
+        duration.value = '8';
+        currentDuration = '8';
+      }
+    });
+
+    // Generate unique filename with timestamp
+    function generateVideoFilename() {
+      const now = new Date();
+      const timestamp = now.getFullYear().toString() +
+        (now.getMonth() + 1).toString().padStart(2, '0') +
+        now.getDate().toString().padStart(2, '0') + '-' +
+        now.getHours().toString().padStart(2, '0') +
+        now.getMinutes().toString().padStart(2, '0') +
+        now.getSeconds().toString().padStart(2, '0');
+      return `generated-video-${timestamp}.mp4`;
+    }
+
+    // Download button click - use File System Access API for Save As dialog
+    downloadBtn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      console.log('[MCP-App] Download clicked');
+
+      const videoSrc = generatedVideo.src;
+      if (!videoSrc || !videoSrc.startsWith('data:')) {
+        console.error('[MCP-App] No video to download');
+        alert('No video to download');
+        return;
+      }
+
+      const filename = generateVideoFilename();
+
+      try {
+        const response = await fetch(videoSrc);
+        const blob = await response.blob();
+
+        if ('showSaveFilePicker' in window) {
+          const handle = await window.showSaveFilePicker({
+            suggestedName: filename,
+            types: [{
+              description: 'MP4 Video',
+              accept: { 'video/mp4': ['.mp4'] }
+            }]
+          });
+          const writable = await handle.createWritable();
+          await writable.write(blob);
+          await writable.close();
+          console.log('[MCP-App] Video saved successfully');
+        } else {
+          const url = URL.createObjectURL(blob);
+          window.open(url, '_blank');
+          console.log('[MCP-App] Opened video in new tab');
+        }
+      } catch (err) {
+        if (err.name === 'AbortError') {
+          console.log('[MCP-App] Save cancelled by user');
+        } else {
+          console.error('[MCP-App] Download failed:', err);
+          alert('Download failed: ' + err.message);
+        }
+      }
+    });
+
+    // Initialize from URL parameters
+    function initializeFromArgs(args) {
+      if (!args || !args.prompt) return false;
+      currentPrompt = args.prompt;
+      currentProvider = args.provider || 'gemini';
+      currentRatio = args.aspectRatio || '16:9';
+      currentResolution = args.resolution || '720p';
+      currentDuration = args.duration || '8';
+      promptText.value = currentPrompt;
+      provider.value = currentProvider;
+      aspectRatio.value = currentRatio;
+      resolution.value = currentResolution;
+      duration.value = currentDuration;
+      updateProviderOptions();
+      showSection(formSection);
+      return true;
+    }
+
+    // Check URL parameters
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlArgs = {
+      prompt: urlParams.get('prompt'),
+      provider: urlParams.get('provider'),
+      aspectRatio: urlParams.get('aspectRatio'),
+      resolution: urlParams.get('resolution'),
+      duration: urlParams.get('duration'),
+      generate: urlParams.get('generate') === 'true'
+    };
+    if (!initializeFromArgs(urlArgs)) {
+      if (window.MCP_INIT_DATA) {
+        initializeFromArgs(window.MCP_INIT_DATA);
+      }
+    }
+
+    // Listen for mcp-init event
+    window.addEventListener('mcp-init', (event) => {
+      initializeFromArgs(event.detail || {});
+    });
+
+    // Notify host that we're ready
+    window.parent.postMessage({ type: 'mcp-app-ready' }, '*');
+
+    // Tell host the required size ONCE at startup
+    const FIXED_HEIGHT = 620;
+    const FIXED_WIDTH = 700;
+
+    window.parent.postMessage({
+      jsonrpc: '2.0',
+      method: 'ui/notifications/size-changed',
+      params: { width: FIXED_WIDTH, height: FIXED_HEIGHT }
+    }, '*');
+  </script>
+</body>
+</html>

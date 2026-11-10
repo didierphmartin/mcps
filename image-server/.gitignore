@@ -1,0 +1,15 @@
+# Private settings and keys: never on GitHub
+.env
+.env.*
+!.env.example
+.api_key
+*.pem
+*.key
+credentials*.json
+client_secret*.json
+token*.json
+
+# Logs and local tool settings
+*.log
+.claude/
+.DS_Store

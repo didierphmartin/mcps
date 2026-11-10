@@ -1,0 +1,5 @@
+RewriteEngine On
+
+# Route /mcp to mcp.php
+RewriteRule ^mcp$ mcp.php [L,QSA]
+RewriteRule ^mcp/$ mcp.php [L,QSA]

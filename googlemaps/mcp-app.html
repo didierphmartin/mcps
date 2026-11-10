@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  <title>Google Maps</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100%; height: 100%;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 14px; overflow: hidden;
+      background: #ffffff; color: #202124;
+    }
+    @media (prefers-color-scheme: dark) {
+      html, body { background: #1f1f1f; color: #e8eaed; }
+    }
+    .main { width: 100%; height: 100%; display: flex; flex-direction: row; overflow: hidden; }
+    #map { flex: 1; height: 100%; min-height: 400px; }
+    #panel {
+      width: 320px; max-width: 40%; height: 100%;
+      overflow-y: auto; border-left: 1px solid rgba(128,128,128,0.2);
+      padding: 12px 14px; background: inherit; display: none;
+    }
+    #panel.visible { display: block; }
+    #panel h3 { font-size: 14px; margin-bottom: 8px; color: inherit; }
+    .place {
+      padding: 10px 8px; border-bottom: 1px solid rgba(128,128,128,0.15);
+      cursor: pointer;
+    }
+    .place:hover { background: rgba(128,128,128,0.08); }
+    .place .name { font-weight: 600; }
+    .place .addr { font-size: 12px; opacity: 0.75; margin-top: 2px; }
+    .place .rating { font-size: 12px; color: #f9a825; margin-top: 2px; }
+    .loading, .error {
+      display: flex; align-items: center; justify-content: center;
+      width: 100%; height: 100%; flex-direction: column; gap: 14px;
+    }
+    .loading { color: #5f6368; }
+    .error { color: #d93025; padding: 20px; text-align: center; }
+    .spinner {
+      width: 40px; height: 40px;
+      border: 3px solid rgba(66,133,244,0.2); border-top-color: #4285f4;
+      border-radius: 50%; animation: spin 1s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <div class="main">
+    <div id="loading" class="loading">
+      <div class="spinner"></div>
+      <span>Waiting for map data...</span>
+    </div>
+    <div id="error" class="error hidden"></div>
+    <div id="map" class="hidden"></div>
+    <aside id="panel"></aside>
+  </div>
+
+  <script>
+    const API_KEY = '__GOOGLE_MAPS_API_KEY__';
+    const MCP_SERVER_URL = '__MCP_SERVER_URL__';
+
+    let map, directionsService, directionsRenderer, placesService;
+    let markers = [];
+    let apiReady = false;
+    let pendingCommand = null;
+
+    // Log to browser console AND relay to server so everything lands in mcp.log.
+    // Fire-and-forget; never throws even if CSP or network blocks the POST.
+    function clog(tag, data) {
+      try { console.log('[mcp-app]', tag, data !== undefined ? data : ''); } catch (_) {}
+      if (!MCP_SERVER_URL || MCP_SERVER_URL.indexOf('__') === 0) return;
+      try {
+        fetch(MCP_SERVER_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ clientLog: { tag, data: data === undefined ? null : data } }),
+          keepalive: true,
+          mode: 'cors'
+        }).catch(() => {});
+      } catch (_) {}
+    }
+    function cerr(tag, data) { clog('ERROR ' + tag, data); }
+
+    const loadingEl = document.getElementById('loading');
+    const errorEl = document.getElementById('error');
+    const mapEl = document.getElementById('map');
+    const panelEl = document.getElementById('panel');
+
+    function showLoading(msg) {
+      loadingEl.classList.remove('hidden');
+      loadingEl.querySelector('span').textContent = msg || 'Loading...';
+      errorEl.classList.add('hidden');
+    }
+    function showError(msg) {
+      errorEl.classList.remove('hidden');
+      errorEl.textContent = 'Error: ' + msg;
+      loadingEl.classList.add('hidden');
+    }
+    function showMap() {
+      loadingEl.classList.add('hidden');
+      errorEl.classList.add('hidden');
+      mapEl.classList.remove('hidden');
+    }
+    function clearMarkers() {
+      markers.forEach(m => m.setMap(null));
+      markers = [];
+    }
+    function hidePanel() {
+      panelEl.classList.remove('visible');
+      panelEl.innerHTML = '';
+    }
+
+    // Bootstrap Google Maps JS API
+    function loadGoogleMaps() {
+      clog('loadGoogleMaps', { apiKeyPresent: !!API_KEY && API_KEY.indexOf('__') !== 0 });
+      if (!API_KEY || API_KEY.indexOf('__') === 0) {
+        cerr('loadGoogleMaps', 'GOOGLE_MAPS_API_KEY not configured');
+        showError('GOOGLE_MAPS_API_KEY is not configured on the server.');
+        return;
+      }
+      if (window.google && window.google.maps) { initMap(); return; }
+      window.__gmapsReady = initMap;
+      const s = document.createElement('script');
+      s.src = 'https://maps.googleapis.com/maps/api/js?key=' + encodeURIComponent(API_KEY)
+            + '&libraries=places&callback=__gmapsReady&v=weekly';
+      s.async = true;
+      s.defer = true;
+      s.onerror = () => { cerr('gmaps-script-load'); showError('Failed to load Google Maps JS API.'); };
+      document.head.appendChild(s);
+    }
+
+    function initMap() {
+      clog('initMap');
+      map = new google.maps.Map(mapEl, {
+        center: { lat: 20, lng: 0 },
+        zoom: 2,
+        mapTypeControl: true,
+        streetViewControl: false,
+        fullscreenControl: true
+      });
+      directionsService = new google.maps.DirectionsService();
+      directionsRenderer = new google.maps.DirectionsRenderer({ map: map });
+      placesService = new google.maps.places.PlacesService(map);
+      apiReady = true;
+      showMap();
+      if (pendingCommand) {
+        clog('flushing pendingCommand', pendingCommand);
+        handleCommand(pendingCommand);
+        pendingCommand = null;
+      }
+    }
+
+    // --- Tool handlers ---
+
+    function doShowMap(args) {
+      hidePanel();
+      directionsRenderer.setMap(null);
+      directionsRenderer.setMap(map);
+      directionsRenderer.setDirections({ routes: [] });
+      clearMarkers();
+
+      const zoom = args.zoom || 13;
+      const mapType = args.mapType || 'roadmap';
+      map.setMapTypeId(mapType);
+
+      const applyCenter = (loc, title) => {
+        map.setCenter(loc);
+        map.setZoom(zoom);
+        if (args.marker !== false) {
+          const marker = new google.maps.Marker({ map, position: loc, title: title || '' });
+          markers.push(marker);
+          if (args.label) {
+            const iw = new google.maps.InfoWindow({ content: '<strong>' + escapeHtml(args.label) + '</strong>' });
+            iw.open({ anchor: marker, map });
+          }
+        }
+      };
+
+      if (args.query) {
+        new google.maps.Geocoder().geocode({ address: args.query }, (results, status) => {
+          clog('showMap geocode', { query: args.query, status: status, hits: results ? results.length : 0 });
+          if (status === 'OK' && results[0]) {
+            applyCenter(results[0].geometry.location, args.label || args.query);
+          } else {
+            cerr('showMap geocode failed', { query: args.query, status: status });
+            showError('Could not find "' + args.query + '" (' + status + ')');
+          }
+        });
+      } else if (typeof args.lat === 'number' && typeof args.lng === 'number') {
+        applyCenter({ lat: args.lat, lng: args.lng }, args.label);
+      } else {
+        map.setCenter({ lat: 20, lng: 0 });
+        map.setZoom(2);
+      }
+    }
+
+    function doShowDirections(args) {
+      hidePanel();
+      clearMarkers();
+      directionsService.route({
+        origin: args.origin,
+        destination: args.destination,
+        travelMode: google.maps.TravelMode[args.mode || 'DRIVING']
+      }, (result, status) => {
+        if (status === 'OK') {
+          directionsRenderer.setDirections(result);
+          const leg = result.routes[0].legs[0];
+          panelEl.classList.add('visible');
+          panelEl.innerHTML =
+            '<h3>' + escapeHtml(leg.start_address) + ' → ' + escapeHtml(leg.end_address) + '</h3>' +
+            '<div style="margin-bottom:8px;font-size:13px;opacity:0.8;">' +
+              escapeHtml(leg.distance.text) + ' • ' + escapeHtml(leg.duration.text) +
+            '</div>' +
+            leg.steps.map((s, i) =>
+              '<div class="place"><div class="name">' + (i+1) + '. ' + s.instructions +
+              '</div><div class="addr">' + escapeHtml(s.distance.text) + '</div></div>'
+            ).join('');
+        } else {
+          showError('Directions request failed: ' + status);
+        }
+      });
+    }
+
+    // Render results that came back from the MCP server (same results the LLM saw,
+    // so the map is always consistent with the LLM's textual answer).
+    function renderPlaceResults(args, results) {
+      clearMarkers();
+      const bounds = new google.maps.LatLngBounds();
+      panelEl.classList.add('visible');
+      panelEl.innerHTML = '<h3>Results for "' + escapeHtml(args.query) + '"'
+        + (args.near ? ' near ' + escapeHtml(args.near) : '') + '</h3>';
+
+      results.forEach((place, i) => {
+        if (place.lat == null || place.lng == null) return;
+        const pos = { lat: +place.lat, lng: +place.lng };
+        const marker = new google.maps.Marker({
+          map, position: pos, label: String(i + 1), title: place.name
+        });
+        markers.push(marker);
+        bounds.extend(pos);
+
+        const item = document.createElement('div');
+        item.className = 'place';
+        item.innerHTML =
+          '<div class="name">' + (i+1) + '. ' + escapeHtml(place.name) + '</div>' +
+          '<div class="addr">' + escapeHtml(place.address || '') + '</div>' +
+          (place.rating ? '<div class="rating">★ ' + place.rating + ' (' + (place.userRatingCount || 0) + ')</div>' : '');
+        item.addEventListener('click', () => {
+          map.panTo(pos);
+          map.setZoom(16);
+          new google.maps.InfoWindow({ content: '<strong>' + escapeHtml(place.name) + '</strong>' })
+            .open({ anchor: marker, map });
+        });
+        panelEl.appendChild(item);
+      });
+      if (!bounds.isEmpty()) map.fitBounds(bounds);
+    }
+
+    function doSearchPlaces(args) {
+      clearMarkers();
+      directionsRenderer.setDirections({ routes: [] });
+
+      // Prefer MCP-server results (same as the LLM sees; strictly scoped to `near`).
+      if (MCP_SERVER_URL && MCP_SERVER_URL.indexOf('__') !== 0) {
+        const url = MCP_SERVER_URL
+          + '?action=search-places'
+          + '&query=' + encodeURIComponent(args.query || '')
+          + (args.near   ? '&near='   + encodeURIComponent(args.near)   : '')
+          + (args.radius ? '&radius=' + encodeURIComponent(args.radius) : '');
+        clog('server search-places fetch', url);
+        fetch(url, { method: 'GET', mode: 'cors' })
+          .then(r => r.json())
+          .then(data => {
+            clog('server search-places response', { count: data && data.results ? data.results.length : 0, error: data && data.error });
+            if (data && data.results && data.results.length) {
+              renderPlaceResults(args, data.results);
+            } else if (data && data.error) {
+              cerr('server search-places error; falling back to client', data);
+              fallbackClientSearch(args);
+            } else {
+              renderPlaceResults(args, []);
+            }
+          })
+          .catch(err => {
+            cerr('server search-places fetch failed; falling back to client', { message: err.message });
+            fallbackClientSearch(args);
+          });
+        return;
+      }
+      fallbackClientSearch(args);
+    }
+
+    // Last-resort fallback: use the client-side Places library. Results are
+    // location-BIASED, not strictly filtered, so they may include neighbouring
+    // cities — kept only for environments where the MCP server isn't reachable.
+    function fallbackClientSearch(args) {
+      const runSearch = (center) => {
+        const req = {
+          query: args.query,
+          location: center,
+          radius: Math.min(args.radius || 2000, 50000)
+        };
+        clog('fallback placesService.textSearch request', req);
+        placesService.textSearch(req, (results, status) => {
+          clog('fallback placesService.textSearch response', { status: status, count: results ? results.length : 0 });
+          if (status !== google.maps.places.PlacesServiceStatus.OK || !results) {
+            cerr('fallback placesService.textSearch failed', { status: status });
+            showError('Places search failed: ' + status);
+            return;
+          }
+          renderPlaceResults(args, results.slice(0, 20).map(p => ({
+            name: p.name,
+            address: p.formatted_address,
+            rating: p.rating,
+            userRatingCount: p.user_ratings_total,
+            lat: p.geometry && p.geometry.location.lat(),
+            lng: p.geometry && p.geometry.location.lng()
+          })));
+        });
+      };
+      if (args.near) {
+        new google.maps.Geocoder().geocode({ address: args.near }, (results, status) => {
+          if (status === 'OK' && results[0]) {
+            map.setCenter(results[0].geometry.location);
+            runSearch(results[0].geometry.location);
+          } else {
+            runSearch(map.getCenter());
+          }
+        });
+      } else {
+        runSearch(map.getCenter());
+      }
+    }
+
+    function escapeHtml(s) {
+      return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    // --- MCP dispatch ---
+
+    // Known tools and the set of prefixes hosts sometimes add (e.g. "mcp_search-places").
+    const KNOWN_TOOLS = ['show-map', 'show-directions', 'search-places'];
+    function normalizeTool(raw) {
+      if (!raw) return null;
+      let t = String(raw);
+      // Strip leading prefixes like "mcp_", "mcp-", "googlemaps_", "googlemaps-", "maps_", etc.
+      t = t.replace(/^(mcp|googlemaps|google-maps|maps)[_\-:.]/i, '');
+      return KNOWN_TOOLS.includes(t) ? t : null;
+    }
+
+    function handleCommand(cmd) {
+      const normalized = cmd && normalizeTool(cmd.tool);
+      clog('handleCommand', { rawTool: cmd && cmd.tool, tool: normalized, args: cmd && cmd.args, apiReady: apiReady });
+
+      if (!normalized) {
+        cerr('handleCommand unknown tool', cmd);
+        // Do not overwrite a previously-queued valid command with this unknown one.
+        return;
+      }
+      const resolved = { tool: normalized, args: (cmd && cmd.args) || {} };
+
+      if (!apiReady) {
+        clog('queueing pendingCommand (api not ready)', resolved);
+        pendingCommand = resolved;
+        return;
+      }
+      try {
+        switch (resolved.tool) {
+          case 'show-map':        return doShowMap(resolved.args);
+          case 'show-directions': return doShowDirections(resolved.args);
+          case 'search-places':   return doSearchPlaces(resolved.args);
+        }
+      } catch (e) {
+        cerr('handleCommand threw', { message: e.message, stack: e.stack });
+        showError(e.message || String(e));
+      }
+    }
+
+    function fromToolInput(params) {
+      return { tool: params.name || params.tool, args: params.arguments || params.args || {} };
+    }
+
+    window.addEventListener('message', (event) => {
+      const data = event.data;
+      if (!data) return;
+      const topKeys = (typeof data === 'object') ? Object.keys(data) : [];
+      clog('postMessage received', {
+        kind: data.type || data.method || 'msg',
+        topKeys: topKeys,
+        data: data
+      });
+
+      // Try multiple envelopes the host might use.
+      // 1) Anthropic MCP Apps: JSON-RPC tool-input notification
+      if (data.jsonrpc === '2.0' && data.method === 'ui/notifications/tool-input') {
+        handleCommand(fromToolInput(data.params || {}));
+        return;
+      }
+      // 2) Direct tool-call envelope: { name|tool, arguments|args }
+      if (data.tool || data.name) {
+        handleCommand(fromToolInput(data));
+        return;
+      }
+      // 3) Structured content wrapper
+      if (data.type === 'mcp-structured-content' || data.structuredContent) {
+        const sc = data.structuredContent || data;
+        if (sc.tool || sc.name) { handleCommand(fromToolInput(sc)); return; }
+        if (sc.query || sc.lat != null) { handleCommand({ tool: 'show-map', args: sc }); return; }
+        clog('postMessage structured-content ignored (no tool/query/lat)', sc);
+        return;
+      }
+      // 4) Some hosts wrap tool args under arguments/args/params without a tool name.
+      //    If we have near/radius/query, treat it as search-places/show-map.
+      const maybeArgs = data.arguments || data.args || data.params;
+      if (maybeArgs && typeof maybeArgs === 'object') {
+        if (maybeArgs.near || maybeArgs.radius) { handleCommand({ tool: 'search-places', args: maybeArgs }); return; }
+        if (maybeArgs.origin && maybeArgs.destination) { handleCommand({ tool: 'show-directions', args: maybeArgs }); return; }
+        if (maybeArgs.query || maybeArgs.lat != null) { handleCommand({ tool: 'show-map', args: maybeArgs }); return; }
+      }
+      clog('postMessage ignored (no recognized shape)', { topKeys: topKeys });
+    });
+
+    // URL param fallback (some MCP hosts pass tool args via the iframe URL,
+    // not via postMessage). Log the full URL so we can see exactly what
+    // params the host provided, then infer the tool if possible.
+    const qs = new URLSearchParams(location.search);
+    const qsObj = {}; qs.forEach((v, k) => { qsObj[k] = v; });
+    clog('boot url', { href: location.href, search: location.search, params: qsObj });
+
+    const coerce = (v) => (v !== '' && !isNaN(+v)) ? +v : v;
+    const argsFromQs = () => {
+      const a = {};
+      qs.forEach((v, k) => {
+        if (k === 'tool' || k === 'server') return; // meta params, not tool args
+        a[k] = coerce(v);
+      });
+      return a;
+    };
+
+    if (qs.get('tool')) {
+      pendingCommand = { tool: qs.get('tool'), args: argsFromQs() };
+    } else if (qs.get('origin') && qs.get('destination')) {
+      pendingCommand = { tool: 'show-directions', args: argsFromQs() };
+    } else if (qs.get('near') || qs.get('radius')) {
+      // Places search intent: query may be missing — fall back to generic term.
+      const a = argsFromQs();
+      if (!a.query) a.query = 'places';
+      pendingCommand = { tool: 'search-places', args: a };
+    } else if (qs.get('query')) {
+      pendingCommand = { tool: 'show-map', args: { query: qs.get('query'), zoom: +(qs.get('zoom') || 13) } };
+    }
+    if (pendingCommand) clog('url-param fallback -> pendingCommand', pendingCommand);
+
+    window.addEventListener('mcp-init', (e) => { if (e.detail) handleCommand(fromToolInput(e.detail)); });
+    if (window.MCP_INIT_DATA) handleCommand(fromToolInput(window.MCP_INIT_DATA));
+
+    clog('app-ready', { hasPending: !!pendingCommand, mcpServerUrl: MCP_SERVER_URL });
+    window.parent.postMessage({ type: 'mcp-app-ready' }, '*');
+    window.parent.postMessage({
+      jsonrpc: '2.0',
+      method: 'ui/notifications/size-changed',
+      params: { height: 600 }
+    }, '*');
+
+    loadGoogleMaps();
+  </script>
+</body>
+</html>

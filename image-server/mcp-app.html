@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Image Generator</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 16px;
+      height: 100%;
+      width: 100%;
+      overflow: hidden;
+      background: #ffffff !important;
+      color: #1a1a1a !important;
+    }
+
+    .container {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      height: 100%;
+      width: 100%;
+      padding: 16px;
+      gap: 16px;
+      overflow: auto;
+    }
+
+    .form {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      width: 100%;
+      max-width: 750px;
+    }
+
+    .field-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      width: 100%;
+    }
+
+    .label {
+      font-weight: 600;
+      font-size: 0.875rem;
+      color: #1a1a1a !important;
+    }
+
+    .prompt-display {
+      padding: 12px;
+      background: #f5f5f5 !important;
+      border-radius: 8px;
+      line-height: 1.5;
+      border: 1px solid #ddd !important;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
+      width: 100%;
+      min-height: 72px;
+      color: #333 !important;
+      font-family: inherit;
+      font-size: 1rem;
+      resize: vertical;
+    }
+
+    .prompt-display:focus {
+      outline: 2px solid #0066cc;
+      outline-offset: 2px;
+    }
+
+    .select {
+      padding: 10px 12px;
+      font-size: 1rem;
+      border: 1px solid #ccc !important;
+      border-radius: 6px;
+      background: #ffffff !important;
+      color: #1a1a1a !important;
+      cursor: pointer;
+      width: 100%;
+    }
+
+    .select:focus {
+      outline: 2px solid #0066cc;
+      outline-offset: 2px;
+    }
+
+    .button {
+      padding: 12px 24px;
+      font-size: 1rem;
+      font-weight: 600;
+      background: #0066cc;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.2s;
+      width: 100%;
+    }
+
+    .button:hover:not(:disabled) {
+      background: #0052a3;
+    }
+
+    .button:disabled {
+      background: #999;
+      cursor: not-allowed;
+    }
+
+    .image-container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      min-height: 150px;
+    }
+
+    .generated-image {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+
+    .loading {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      color: #666 !important;
+    }
+
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid #e0e0e0 !important;
+      border-top-color: #0066cc !important;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .error {
+      padding: 12px 16px;
+      background: #fee;
+      border: 1px solid #fcc;
+      border-radius: 8px;
+      color: #c00;
+      width: 100%;
+    }
+
+    .button-group {
+      display: flex;
+      gap: 12px;
+      width: 100%;
+    }
+
+    .button-secondary {
+      padding: 10px 20px;
+      font-size: 0.875rem;
+      background: #ffffff !important;
+      color: #1a1a1a !important;
+      border: 1px solid #ccc !important;
+      border-radius: 6px;
+      cursor: pointer;
+      flex: 1;
+      text-align: center;
+      text-decoration: none;
+    }
+
+    .button-secondary:hover {
+      background: #f0f0f0 !important;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Initial state: waiting for prompt -->
+    <div id="connecting" class="loading">
+      <div class="spinner"></div>
+      <div>Waiting for prompt...</div>
+    </div>
+
+    <!-- Form state -->
+    <div id="form-section" class="form hidden">
+      <div class="field-group">
+        <label class="label">Prompt</label>
+        <textarea id="prompt-text" class="prompt-display" rows="3" placeholder="Describe the image you want to generate..."></textarea>
+      </div>
+
+      <div class="field-group">
+        <label class="label">Aspect Ratio</label>
+        <select id="aspect-ratio" class="select">
+          <option value="1:1">1:1 (Square)</option>
+          <option value="16:9">16:9 (Widescreen)</option>
+          <option value="9:16">9:16 (Portrait)</option>
+          <option value="4:3">4:3 (Standard)</option>
+          <option value="3:4">3:4 (Portrait)</option>
+        </select>
+      </div>
+
+      <button id="generate-btn" class="button">Generate Image</button>
+    </div>
+
+    <!-- Loading state -->
+    <div id="loading-section" class="loading hidden">
+      <div class="spinner"></div>
+      <div id="loading-status">Generating image...</div>
+    </div>
+
+    <!-- Error state -->
+    <div id="error-section" class="error hidden"></div>
+
+    <!-- Image result -->
+    <div id="image-section" class="image-container hidden">
+      <img id="generated-image" class="generated-image" alt="Generated image">
+      <div class="button-group">
+        <button id="reset-btn" class="button-secondary">Generate Another</button>
+        <a id="download-btn" class="button-secondary" download="generated-image.png">Download</a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // State
+    let currentPrompt = '';
+    let currentRatio = '1:1';
+    let hostOrigin = '*';
+    let requestId = 0;
+    const pendingRequests = new Map();
+
+    // Elements
+    const connecting = document.getElementById('connecting');
+    const formSection = document.getElementById('form-section');
+    const promptText = document.getElementById('prompt-text');
+    const aspectRatio = document.getElementById('aspect-ratio');
+    const generateBtn = document.getElementById('generate-btn');
+    const loadingSection = document.getElementById('loading-section');
+    const errorSection = document.getElementById('error-section');
+    const imageSection = document.getElementById('image-section');
+    const generatedImage = document.getElementById('generated-image');
+    const resetBtn = document.getElementById('reset-btn');
+    const downloadBtn = document.getElementById('download-btn');
+
+    // Show a specific section
+    function showSection(section) {
+      [connecting, formSection, loadingSection, errorSection, imageSection].forEach(el => {
+        el.classList.add('hidden');
+      });
+      section.classList.remove('hidden');
+    }
+
+    // Show error
+    function showError(message) {
+      errorSection.textContent = message;
+      showSection(errorSection);
+    }
+
+    // Handle structured content from MCP host
+    function handleStructuredContent(data) {
+      if (!data) return;
+
+      if (data.status === 'ready') {
+        currentPrompt = data.prompt || '';
+        promptText.value = currentPrompt;
+        if (data.aspectRatio) {
+          aspectRatio.value = data.aspectRatio;
+          currentRatio = data.aspectRatio;
+        }
+        showSection(formSection);
+      } else if (data.status === 'completed') {
+        if (data.imageBase64) {
+          const mimeType = data.mimeType || 'image/png';
+          generatedImage.src = `data:${mimeType};base64,${data.imageBase64}`;
+          downloadBtn.href = generatedImage.src;
+          showSection(imageSection);
+        }
+      } else if (data.status === 'error') {
+        showError(data.error || 'An error occurred');
+      }
+    }
+
+    // Handle tool result from MCP response
+    function handleToolResult(result) {
+      // Result may have structuredContent or be direct content
+      if (result.structuredContent) {
+        handleStructuredContent(result.structuredContent);
+      } else if (result.content) {
+        // Check for error in content
+        const textContent = result.content.find(c => c.type === 'text');
+        if (result.isError && textContent) {
+          showError(textContent.text);
+        }
+      }
+    }
+
+    // Listen for messages from MCP host
+    window.addEventListener('message', (event) => {
+      hostOrigin = event.origin;
+      const data = event.data;
+
+      if (!data) return;
+
+      console.log('[MCP-App] Received message:', data.type || data.method || 'unknown', data);
+
+      // Handle JSON-RPC 2.0 messages from host
+      if (data.jsonrpc === '2.0') {
+        // Handle notifications (no id)
+        if (data.method) {
+          if (data.method === 'ui/notifications/tool-input') {
+            const args = data.params?.arguments || {};
+            currentPrompt = args.prompt || '';
+            currentRatio = args.aspectRatio || '1:1';
+            promptText.value = currentPrompt;
+            aspectRatio.value = currentRatio;
+            showSection(formSection);
+          } else if (data.method === 'ui/notifications/tool-result') {
+            handleToolResult(data.params || {});
+          }
+          return;
+        }
+
+        // Handle responses (has id, no method)
+        if (data.id !== undefined) {
+          const pending = pendingRequests.get(data.id);
+          if (pending) {
+            console.log('[MCP-App] Got JSON-RPC response for id:', data.id, data);
+            pendingRequests.delete(data.id);
+            if (data.error) {
+              pending.reject(new Error(data.error.message || 'Unknown error'));
+            } else {
+              pending.resolve(data.result);
+            }
+          }
+          return;
+        }
+      }
+
+      // Handle legacy mcp-app-response format
+      if (data.type === 'mcp-app-response') {
+        const pending = pendingRequests.get(data.requestId);
+        if (pending) {
+          pendingRequests.delete(data.requestId);
+          if (data.error) {
+            showError(data.error);
+          } else {
+            handleToolResult(data.result || {});
+          }
+        }
+        return;
+      }
+
+      // Handle legacy/alternative message formats
+      if (data.type === 'mcp-structured-content' || data.structuredContent) {
+        handleStructuredContent(data.structuredContent || data);
+      } else if (data.type === 'mcp-tool-result') {
+        handleToolResult(data.result || data);
+      } else if (data.status) {
+        // Direct status object
+        handleStructuredContent(data);
+      }
+    });
+
+    // Status display for debugging
+    const loadingStatus = document.getElementById('loading-status');
+    function setStatus(msg) {
+      if (loadingStatus) loadingStatus.textContent = msg;
+    }
+
+    // Call MCP tool via host using JSON-RPC 2.0 protocol
+    async function callServerTool(name, args) {
+      setStatus('Sending request to host...');
+
+      return new Promise((resolve, reject) => {
+        const id = ++requestId;
+        pendingRequests.set(id, { resolve, reject });
+
+        // Use JSON-RPC 2.0 format that chat.js bridge expects
+        const message = {
+          jsonrpc: '2.0',
+          id: id,
+          method: 'tools/call',
+          params: { name, arguments: args }
+        };
+        console.log('[MCP-App] Sending JSON-RPC request:', message);
+        window.parent.postMessage(message, '*');
+
+        setStatus('Waiting for response...');
+
+        // Timeout after 2 minutes
+        setTimeout(() => {
+          if (pendingRequests.has(id)) {
+            pendingRequests.delete(id);
+            reject(new Error('Request timeout - no response from host'));
+          }
+        }, 120000);
+      });
+    }
+
+    // Generate button click - request generation via MCP host
+    generateBtn.addEventListener('click', async () => {
+      try {
+        console.log('[MCP-App] Generate button clicked!');
+
+        // Use whatever the user has (possibly) edited in the textarea
+        currentPrompt = promptText.value.trim();
+        console.log('[MCP-App] currentPrompt:', currentPrompt);
+
+        if (!currentPrompt) {
+          showError('Please enter a prompt before generating.');
+          return;
+        }
+
+        showSection(loadingSection);
+
+        if (loadingStatus) {
+          loadingStatus.textContent = 'Button clicked...';
+        }
+
+        currentRatio = aspectRatio.value;
+        console.log('[MCP-App] About to call tool with prompt:', currentPrompt, 'ratio:', currentRatio);
+
+        const result = await callServerTool('generate-image', {
+          prompt: currentPrompt,
+          aspectRatio: currentRatio,
+          generate: true
+        });
+
+        console.log('[MCP-App] Got result:', result);
+        if (loadingStatus) loadingStatus.textContent = 'Processing result...';
+        handleToolResult(result);
+      } catch (err) {
+        console.error('[MCP-App] Click handler error:', err);
+        if (loadingStatus) loadingStatus.textContent = 'Error: ' + err.message;
+        showError(err.message || 'Failed to generate image');
+      }
+    });
+
+    // Reset button click
+    resetBtn.addEventListener('click', () => {
+      console.log('[MCP-App] Generate Another clicked');
+      showSection(formSection);
+    });
+
+    // Generate unique filename with timestamp
+    function generateImageFilename() {
+      const now = new Date();
+      const timestamp = now.getFullYear().toString() +
+        (now.getMonth() + 1).toString().padStart(2, '0') +
+        now.getDate().toString().padStart(2, '0') + '-' +
+        now.getHours().toString().padStart(2, '0') +
+        now.getMinutes().toString().padStart(2, '0') +
+        now.getSeconds().toString().padStart(2, '0');
+      return `generated-image-${timestamp}.png`;
+    }
+
+    // The File System Access API is forbidden inside cross-origin iframes
+    // (Chrome: "Cross origin sub frames aren't allowed to show a file picker"),
+    // which is the case when the host loads this app from the Node backend
+    // (frontend on :80, app served from :3001).
+    function isCrossOriginFrame() {
+      try {
+        void window.top.location.href;
+        return false;
+      } catch (err) {
+        return true;
+      }
+    }
+
+    // Plain anchor download (works cross-origin; iframe sandbox needs allow-downloads)
+    function anchorDownload(href, filename) {
+      const a = document.createElement('a');
+      a.href = href;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
+
+    // Download button click - Save As dialog where allowed, anchor download otherwise
+    downloadBtn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      console.log('[MCP-App] Download clicked');
+
+      const imageSrc = generatedImage.src;
+      if (!imageSrc || !imageSrc.startsWith('data:')) {
+        console.error('[MCP-App] No image to download');
+        alert('No image to download');
+        return;
+      }
+
+      const filename = generateImageFilename();
+
+      if (!('showSaveFilePicker' in window) || isCrossOriginFrame()) {
+        anchorDownload(imageSrc, filename);
+        console.log('[MCP-App] Anchor download triggered');
+        return;
+      }
+
+      try {
+        // Convert data URL to blob
+        const response = await fetch(imageSrc);
+        const blob = await response.blob();
+
+        // File System Access API (shows Save As dialog)
+        const handle = await window.showSaveFilePicker({
+          suggestedName: filename,
+          types: [{
+            description: 'PNG Image',
+            accept: { 'image/png': ['.png'] }
+          }]
+        });
+        const writable = await handle.createWritable();
+        await writable.write(blob);
+        await writable.close();
+        console.log('[MCP-App] File saved successfully');
+      } catch (err) {
+        if (err.name === 'AbortError') {
+          console.log('[MCP-App] Save cancelled by user');
+        } else {
+          // e.g. SecurityError from an embedding case isCrossOriginFrame() missed
+          console.error('[MCP-App] Save As failed, falling back to anchor download:', err);
+          anchorDownload(imageSrc, filename);
+        }
+      }
+    });
+
+    // Initialize from various sources
+    function initializeFromArgs(args) {
+      if (!args || !args.prompt) return false;
+      currentPrompt = args.prompt;
+      currentRatio = args.aspectRatio || '1:1';
+      promptText.value = currentPrompt;
+      aspectRatio.value = currentRatio;
+      showSection(formSection);
+      return true;
+    }
+
+    // 1. Check URL parameters (passed by mcp-app.php proxy)
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlArgs = {
+      prompt: urlParams.get('prompt'),
+      aspectRatio: urlParams.get('aspectRatio'),
+      generate: urlParams.get('generate') === 'true'
+    };
+    if (!initializeFromArgs(urlArgs)) {
+      // 2. Check for MCP_INIT_DATA (injected by host)
+      if (window.MCP_INIT_DATA) {
+        initializeFromArgs(window.MCP_INIT_DATA);
+      }
+    }
+
+    // Listen for mcp-init event (dispatched by host after injection)
+    window.addEventListener('mcp-init', (event) => {
+      initializeFromArgs(event.detail || {});
+    });
+
+    // Notify host that we're ready
+    window.parent.postMessage({ type: 'mcp-app-ready' }, '*');
+
+    // Tell host the required size ONCE at startup (no dynamic resizing)
+    const FIXED_HEIGHT = 590;  // Fixed height that fits form + image + buttons
+    const FIXED_WIDTH = 600;
+
+    window.parent.postMessage({
+      jsonrpc: '2.0',
+      method: 'ui/notifications/size-changed',
+      params: { width: FIXED_WIDTH, height: FIXED_HEIGHT }
+    }, '*');
+  </script>
+</body>
+</html>

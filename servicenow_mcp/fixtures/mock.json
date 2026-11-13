@@ -1,0 +1,29 @@
+{
+  "groups": ["SynergyAI", "Service Desk", "Identity Team"],
+  "tasks": [
+    {"sys_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaa0101", "number": "SCTASK0000101", "state": 1, "active": true,
+     "assignment_group": "SynergyAI", "correlation_display": "synergyai:okta-reset", "correlation_id": "okta-reset@1",
+     "short_description": "Reset Okta password", "created": "2026-10-01T09:00:00Z", "request_item": "RITM0000101"},
+    {"sys_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaa0102", "number": "SCTASK0000102", "state": 1, "active": true,
+     "assignment_group": "SynergyAI", "correlation_display": "synergyai:git-access",
+     "short_description": "Grant Git repository access", "created": "2026-10-01T10:00:00Z", "request_item": "RITM0000102"},
+    {"sys_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaa0103", "number": "SCTASK0000103", "state": 1, "active": true,
+     "assignment_group": "Service Desk", "correlation_display": "",
+     "short_description": "Deliver laptop", "created": "2026-09-30T09:00:00Z", "request_item": "RITM0000102"}
+  ],
+  "items": {
+    "okta-reset": {"sys_id": "c0ffee00000000000000000000000101", "name": "Okta password reset",
+                   "variables": [{"name": "synergyai_automation", "type": "6", "mandatory": false, "default_value": "okta-reset@1"},
+                                 {"name": "user_email", "type": "6", "mandatory": true},
+                                 {"name": "reason", "type": "6", "mandatory": false}]}
+  },
+  "request_items": {
+    "RITM0000101": {"catalog_item": "Okta password reset", "catalog_item_id": "c0ffee00000000000000000000000101", "requested_for": "jane.doe",
+                    "answers": [{"name": "", "label": "Your account", "value": ""},
+                                {"name": "email", "label": "Email", "value": "low@test"},
+                                {"name": "reason", "label": "Reason", "value": "forgot"}]},
+    "RITM0000102": {"catalog_item": "Contractor access", "requested_for": "bob.lee",
+                    "answers": [{"name": "contractor_email", "label": "Contractor email", "value": "c@vendor.com"},
+                                {"name": "git", "label": "Git repository", "value": "true"}]}
+  }
+}

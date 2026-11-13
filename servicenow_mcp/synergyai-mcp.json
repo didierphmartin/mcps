@@ -1,0 +1,25 @@
+{
+  "name": "servicenow_mcp",
+  "runtime": "python",
+  "description": "ServiceNow tasks for SynergyAI (jobs) and Fluent app deploy",
+  "exclude": [
+    "var/",
+    "pytest.ini"
+  ],
+  "install": "python3 -m venv .venv && .venv/bin/pip install -r requirements.txt",
+  "start": "./run.sh",
+  "env": [
+    {"name": "SN_INSTANCE", "label": "Instance URL, https://<name>.service-now.com (or mock for the built-in fake instance)", "required": true},
+    {"name": "SN_CLIENT_ID", "label": "OAuth client ID (Machine Identity Console, client credentials grant)", "required": true},
+    {"name": "SN_CLIENT_SECRET", "label": "OAuth client secret", "required": true, "secret": true},
+    {"name": "SN_GROUP", "label": "Assignment group SynergyAI works for", "required": true, "default": "SynergyAI"},
+    {"name": "SN_TAG_PREFIX", "label": "Tag prefix of SynergyAI tasks (correlation display)", "required": true, "default": "synergyai:"},
+    {"name": "SN_ENVIRONMENT", "label": "dev, test or prod (only dev and test allow deploying apps)", "default": "prod"},
+    {"name": "SN_HOST", "label": "Host to listen on", "default": "127.0.0.1"},
+    {"name": "SN_PORT", "label": "Port", "default": "8772"},
+    {"name": "SN_INSTALL_USER", "label": "Deploy: a user that may install apps (dev/test only, optional)"},
+    {"name": "SN_INSTALL_PASSWORD", "label": "Deploy: that user's password (optional)", "secret": true},
+    {"name": "SN_NPX", "label": "Deploy: full path of npx (optional)", "default": "npx"},
+    {"name": "SN_DEPLOY_TOKEN", "label": "Deploy: token callers send as 'Authorization: Bearer <token>' (optional)", "secret": true}
+  ]
+}
